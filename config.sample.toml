@@ -1,0 +1,4 @@
+wallet = 'agent'
+inbound_transport = 'stdin'
+outbound_transport = 'stdout'
+log_level = 10
