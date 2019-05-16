@@ -15,6 +15,28 @@ class Config:
     """ Configuration class used to store and update configuration information.
     """
 
+    config: str
+    wallet: str
+    inbound_transport: str
+    outbound_transport: str
+    log_level: int
+
+    def __init__(self):
+        self.config: str = None
+        self.wallet: str = None
+        self.inbound_transport: str = None
+        self.outbound_transport: str = None
+        self.log_level: int = None
+
+    @staticmethod
+    def default_options():
+        return {
+            'wallet': 'agent',
+            'inbound_transport': 'stdin',
+            'outbound_transport': 'stdout',
+            'log_level': 10
+        }
+
     @staticmethod
     def get_arg_parser():
         """ Construct an argument parser that matches our configuration.
@@ -22,6 +44,14 @@ class Config:
         parser = argparse.ArgumentParser(
             description='Agent',
             prog='agent'
+        )
+        parser.add_argument(
+            '-c',
+            '--config',
+            dest='config',
+            metavar='FILE',
+            type=str,
+            help='Load configuration from FILE.'
         )
         parser.add_argument(
             '-i',
@@ -49,41 +79,50 @@ class Config:
         )
         return parser
 
+    def load_options_from_file(self, config_path: str):
+        options = toml.load(config_path)
+        self.update(options, soft=True)
+
+
     @staticmethod
     def from_file(config_path: str):
         """ Create config object from toml file.
         """
         conf = Config()
-        options = toml.load(config_path)
-        conf.update(options)
+        conf.load_options_from_file(config_path)
         return conf
 
-    def __init__(self):
-        self.wallet: str = 'agent'
-        self.inbound_transport: str = "stdin"
-        self.outbound_transport: str = "stdout"
-        self.log_level: int = 10
+    @staticmethod
+    def from_args_file_defaults():
+        conf = Config()
+        parser = Config.get_arg_parser()
+        parser.parse_known_args(namespace=conf)
+        if conf.config:
+            conf.load_options_from_file(conf.config)
 
-    def update(self, options: Dict[str, Any]):
+        conf.update(Config.default_options(), soft=True)
+        return conf
+
+    def update(self, options: Dict[str, Any], **kwargs):
         """ Load configuration from the options dictionary.
         """
+        soft = 'soft' in kwargs and kwargs['soft']
 
         for var in self.__dict__:
             if var in options and options[var] is not None:
-                if type(options[var]) is not type(self.__dict__[var]):
+                if not isinstance(options[var], Config.__annotations__[var]):
                     err_msg = 'Configuration option {} is an invalid type'.format(var)
                     raise InvalidConfigurationException(err_msg)
 
-                self.__dict__[var] = options[var]
+                if soft:
+                    if self.__dict__[var] is None:
+                        self.__dict__[var] = options[var]
+                else:
+                    self.__dict__[var] = options[var]
+
 
 if __name__ == '__main__':
 
-    DEFAULT_CONFIG_PATH = 'config.sample.toml'
-
     print("TESTING CONFIGURATION")
-    PARSER = Config.get_arg_parser()
-    CONFIG = Config.from_file(DEFAULT_CONFIG_PATH)
-
-    PARSER.parse_known_args(namespace=CONFIG)
-
+    CONFIG = Config.from_args_file_defaults()
     print(CONFIG.__dict__)
