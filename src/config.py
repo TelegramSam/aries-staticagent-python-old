@@ -116,6 +116,12 @@ class Config:
             help='Wallet passphrase (Prompted at execution)',
             required=True
         )
+        parser.add_argument(
+            '--ephemeral',
+            dest='ephemeral',
+            action='store_true',
+            help='Use ephemeral wallet'
+        )
         return parser
 
     def load_options_from_file(self, config_path: str):
