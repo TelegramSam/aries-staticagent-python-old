@@ -10,13 +10,15 @@ def run_hooks(hooks, hook_name, func, *args, **kwargs):
         return values of the called function or the previous hook appended to
         the end.
     """
-    for hook_fn in hooks['pre_' + hook_name]:
-        hook_fn(*args, **kwargs)
+    if 'pre_' + hook_name in hooks:
+        for hook_fn in hooks['pre_' + hook_name]:
+            hook_fn(*args, **kwargs)
 
     return_value = func(*args, **kwargs)
 
-    for hook_fn in hooks['post_' + hook_name]:
-        return_value = hook_fn(*args, return_value, **kwargs)
+    if 'post_' + hook_name in hooks:
+        for hook_fn in hooks['post_' + hook_name]:
+            return_value = hook_fn(*args, return_value, **kwargs)
 
     return return_value
 
