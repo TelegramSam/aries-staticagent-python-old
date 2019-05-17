@@ -1,5 +1,7 @@
 """ Module for storing and updating configuration.
 """
+import sys
+import getpass
 
 import argparse
 from typing import Dict, Any
@@ -17,6 +19,7 @@ class Config:
 
     config: str
     wallet: str
+    passphrase: str
     inbound_transport: str
     outbound_transport: str
     log_level: int
@@ -24,6 +27,7 @@ class Config:
     def __init__(self):
         self.config: str = None
         self.wallet: str = None
+        self.passphrase: str = None
         self.inbound_transport: str = None
         self.outbound_transport: str = None
         self.log_level: int = None
@@ -32,6 +36,7 @@ class Config:
     def default_options():
         return {
             'wallet': 'agent',
+            'passphrase': 'default',
             'inbound_transport': 'stdin',
             'outbound_transport': 'stdout',
             'log_level': 10
@@ -41,6 +46,26 @@ class Config:
     def get_arg_parser():
         """ Construct an argument parser that matches our configuration.
         """
+        class PasswordPromptAction(argparse.Action):
+            def __init__(self, option_strings, dest=None, nargs='?', default=None,
+                         required=False, type=None, metavar=None, help=None):
+                super(PasswordPromptAction, self).__init__(
+                    option_strings=option_strings, dest=dest,
+                    nargs=nargs, default=default, required=required, metavar=metavar,
+                    type=type, help=help
+                )
+
+            def __call__(self, parser, args, values, option_string=None):
+                if not values:
+                    if sys.stdin.isatty():
+                        passphrase = getpass.getpass("Passphrase: ")
+                    else:
+                        passphrase = sys.stdin.readline().rstrip()
+                else:
+                    passphrase = values
+
+                setattr(args, self.dest, passphrase)
+
         parser = argparse.ArgumentParser(
             description='Agent',
             prog='agent'
@@ -75,7 +100,18 @@ class Config:
             dest='wallet',
             metavar='WALLET',
             type=str,
-            help='Specify wallet'
+            help='Specify wallet',
+            required=True,
+        )
+        parser.add_argument(
+            '-p',
+            '--passphrase',
+            dest='passphrase',
+            action=PasswordPromptAction,
+            metavar='PASS',
+            type=str,
+            help='Wallet passphrase (Prompted at execution)',
+            required=True
         )
         return parser
 

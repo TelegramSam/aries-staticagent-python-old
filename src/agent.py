@@ -1,4 +1,5 @@
 """ Agent """
+from config import Config
 from hooks import self_hook_point
 from errors import NoRegisteredRouteException
 
@@ -7,10 +8,15 @@ class Agent:
     hooks = {}
 
     def __init__(self):
+        self.config = None
+        self.wallet_handle = None
         self.routes = {}
+        self.hooks = Agent.hooks.copy() # Copy statically configured hooks
 
-        # Copy statically configured hooks
-        self.hooks = Agent.hooks.copy()
+    @staticmethod
+    def from_config(config: Config):
+        agent = Agent()
+        agent.config = config
 
     def register_route(self, msg_type):
         """ Register route decorator. """
