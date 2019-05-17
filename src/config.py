@@ -23,6 +23,7 @@ class Config:
     ephemeral: bool
     inbound_transport: str
     outbound_transport: str
+    num_messages: int
     log_level: int
 
     def __init__(self):
@@ -32,6 +33,7 @@ class Config:
         self.ephemeral: bool = None
         self.inbound_transport: str = None
         self.outbound_transport: str = None
+        num_messages: int = None
         self.log_level: int = None
 
     @staticmethod
@@ -42,6 +44,7 @@ class Config:
             'ephemeral': False,
             'inbound_transport': 'stdin',
             'outbound_transport': 'stdout',
+            'num_messages': -1,
             'log_level': 10
         }
 
@@ -120,7 +123,15 @@ class Config:
             '--ephemeral',
             dest='ephemeral',
             action='store_true',
-            help='Use ephemeral wallet'
+            help='Use ephemeral wallets'
+        )
+        parser.add_argument(
+            '-n',
+            '--num',
+            dest='num_messages',
+            metavar='NUM',
+            type=int,
+            help='Process NUM number of messages and stop'
         )
         return parser
 
