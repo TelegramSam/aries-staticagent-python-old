@@ -61,6 +61,10 @@ async def test_object_hooks():
         def hook(self, hook_name):
             return hook(self, hook_name)
 
+        def register_hook(self, hook_name, hook_fn):
+            hook(self, hook_name)(hook_fn)
+
+
     hookable = Hookable()
 
     @hookable.hook('post_testing')
@@ -68,4 +72,10 @@ async def test_object_hooks():
         assert ret3 == 3
         return 4
 
-    assert await hookable.testing('one', 'two') == 4
+    async def post_hook_out_of_object_runtime(obj, a, b, ret4):
+        assert ret4 == 4
+        return 5
+
+    hookable.register_hook('post_testing', post_hook_out_of_object_runtime)
+
+    assert await hookable.testing('one', 'two') == 5
