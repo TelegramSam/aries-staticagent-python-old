@@ -4,6 +4,7 @@ import asyncio
 from config import Config
 from errors import NoRegisteredRouteException, UnknownTransportException
 from hooks import self_hook_point
+from messages.message import Message
 from indy_sdk_utils import open_wallet
 import transport.inbound.standard_in as StdIn
 import transport.outbound.standard_out as StdOut
@@ -66,11 +67,8 @@ class Agent:
 
         await self.routes[msg.type](self, msg, *args, **kwargs)
 
-    async def deserialize(self, wire):
-        """ Deserialization of message from bytes. """
-
     # Hooks discovered at runtime
     @self_hook_point()
     async def unpack(self, packed_message):
         """ Perform processing to convert bytes off the wire to Message. """
-        return packed_message
+        return Message.deserialize(packed_message)
