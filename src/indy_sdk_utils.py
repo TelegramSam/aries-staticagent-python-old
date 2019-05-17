@@ -3,11 +3,11 @@
 import json
 from indy import wallet, did, non_secrets, error
 
-async def open_wallet(wallet, passphrase, ephemeral=False):
+async def open_wallet(wallet_name, passphrase, ephemeral=False):
     """ Create if not already exists and open wallet.
     """
 
-    wallet_config = json.dumps({"id": wallet})
+    wallet_config = json.dumps({"id": wallet_name})
     wallet_credentials = json.dumps({"key": passphrase})
 
     # Handle ephemeral wallets
