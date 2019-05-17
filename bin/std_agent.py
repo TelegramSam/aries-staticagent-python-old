@@ -8,7 +8,7 @@ if __name__ == '__main__':
     config = Config.from_args_file_defaults()
     agent = loop.run_until_complete(Agent.from_config(config))
 
-    @agent.register_route('testing')
+    @agent.route('testing')
     async def testing_handler(agent, msg):
         await agent.outbound_transport.send('to_key', 'from_key', msg)
 

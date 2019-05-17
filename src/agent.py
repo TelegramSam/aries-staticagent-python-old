@@ -46,13 +46,21 @@ class Agent:
 
     async def start(self):
         asyncio.ensure_future(self.inbound_transport.start())
-        while True:
-            msg_bytes = await self.inbound_transport.recv()
-            msg = await self.unpack(msg_bytes)
-            await self.route(msg)
+
+        if self.config.num_messages == -1:
+            while True:
+                await self.handle_inbound()
+        else:
+            for _ in range(1, self.config.num_messages):
+                await self.handle_inbound()
+
+    async def handle_inbound(self):
+        msg_bytes = await self.inbound_transport.recv()
+        msg = await self.unpack(msg_bytes)
+        await self.handle(msg)
 
 
-    def register_route(self, msg_type):
+    def route(self, msg_type):
         """ Register route decorator. """
         def register_route_dec(func):
             self.routes[msg_type] = func
@@ -60,7 +68,7 @@ class Agent:
         return register_route_dec
 
     @self_hook_point()
-    async def route(self, msg, *args, **kwargs):
+    async def handle(self, msg, *args, **kwargs):
         """ Route message """
         if not msg.type in self.routes:
             raise NoRegisteredRouteException
