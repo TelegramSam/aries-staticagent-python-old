@@ -21,7 +21,7 @@ def run_hooks(hooks, hook_name, func, *args, **kwargs):
     return return_value
 
 
-def self_hook_point(hook_name):
+def self_hook_point():
     """ Define a function with pre and post hooks inside of a class.
         This will pull `hooks` from the first argument (self).
 
@@ -31,6 +31,8 @@ def self_hook_point(hook_name):
         tests/test_hooks::test_object_hooks for an example.
     """
     def self_hook_point_dec(func):
+        hook_name = func.__name__
+
         @functools.wraps(func)
         def wrapped(*args, **kwargs):
             if not args or not hasattr(args[0], 'hooks'):
@@ -43,9 +45,11 @@ def self_hook_point(hook_name):
 
     return self_hook_point_dec
 
-def hook_point(hooks, hook_name):
+def hook_point(hooks):
     """ Define a function with pre and post hooks given a hooks dictionary. """
     def hook_point_dec(func):
+        hook_name = func.__name__
+
         @functools.wraps(func)
         def wrapped(*args, **kwargs):
             return run_hooks(hooks, hook_name, func, *args, **kwargs)

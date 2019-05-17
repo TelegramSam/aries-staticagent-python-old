@@ -5,8 +5,8 @@ from hooks import hook, hook_point, self_hook_point
 def test_hooks():
     hooks = {}
 
-    @hook_point(hooks, 'testing')
-    def hook_test(a, b):
+    @hook_point(hooks)
+    def testing(a, b):
         assert a == 'one'
         assert b == 'two'
         return 1
@@ -26,7 +26,7 @@ def test_hooks():
         assert ret2 == 2
         return 3
 
-    assert hook_test('one', 'two') == 3
+    assert testing('one', 'two') == 3
 
 def test_object_hooks():
     class Hookable:
@@ -50,8 +50,8 @@ def test_object_hooks():
             assert ret2 == 2
             return 3
 
-        @self_hook_point('testing')
-        def hook_test(self, a, b):
+        @self_hook_point()
+        def testing(self, a, b):
             assert a == 'one'
             assert b == 'two'
             return 1
@@ -66,4 +66,4 @@ def test_object_hooks():
         assert ret3 == 3
         return 4
 
-    assert hookable.hook_test('one', 'two') == 4
+    assert hookable.testing('one', 'two') == 4
