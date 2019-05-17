@@ -3,7 +3,7 @@ import functools
 class NoHooksFoundException(Exception):
     pass
 
-def run_hooks(hooks, hook_name, func, *args, **kwargs):
+async def run_hooks(hooks, hook_name, func, *args, **kwargs):
     """ Run hooks for func with hook_name.
         Parameters of pre hooks are the same as the called function.
         Parameters of post hooks are the same as the called function with the
@@ -12,13 +12,13 @@ def run_hooks(hooks, hook_name, func, *args, **kwargs):
     """
     if 'pre_' + hook_name in hooks:
         for hook_fn in hooks['pre_' + hook_name]:
-            hook_fn(*args, **kwargs)
+            await hook_fn(*args, **kwargs)
 
-    return_value = func(*args, **kwargs)
+    return_value = await func(*args, **kwargs)
 
     if 'post_' + hook_name in hooks:
         for hook_fn in hooks['post_' + hook_name]:
-            return_value = hook_fn(*args, return_value, **kwargs)
+            return_value = await hook_fn(*args, return_value, **kwargs)
 
     return return_value
 
@@ -36,12 +36,12 @@ def self_hook_point():
         hook_name = func.__name__
 
         @functools.wraps(func)
-        def wrapped(*args, **kwargs):
+        async def wrapped(*args, **kwargs):
             if not args or not hasattr(args[0], 'hooks'):
                 raise NoHooksFoundException
 
             hooks = args[0].hooks
-            return run_hooks(hooks, hook_name, func, *args, **kwargs)
+            return await run_hooks(hooks, hook_name, func, *args, **kwargs)
 
         return wrapped
 
@@ -53,8 +53,8 @@ def hook_point(hooks):
         hook_name = func.__name__
 
         @functools.wraps(func)
-        def wrapped(*args, **kwargs):
-            return run_hooks(hooks, hook_name, func, *args, **kwargs)
+        async def wrapped(*args, **kwargs):
+            return await run_hooks(hooks, hook_name, func, *args, **kwargs)
         return wrapped
     return hook_point_dec
 

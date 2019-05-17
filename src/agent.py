@@ -3,7 +3,7 @@ import asyncio
 
 from config import Config
 from errors import NoRegisteredRouteException, UnknownTransportException
-from hooks import self_hook_point
+from hooks import self_hook_point, hook
 from messages.message import Message
 from indy_sdk_utils import open_wallet
 import transport.inbound.standard_in as StdIn
@@ -43,6 +43,9 @@ class Agent:
         agent.outbound_transport = StdOut
 
         return agent
+
+    def hook(self, hook_name):
+        return hook(self, hook_name)
 
     async def start(self):
         asyncio.ensure_future(self.inbound_transport.start())
