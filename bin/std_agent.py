@@ -6,12 +6,12 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
 
     config = Config.from_args_file_defaults()
+
     agent = loop.run_until_complete(Agent.from_config(config))
 
     @agent.route('testing')
     async def testing_handler(agent, msg):
-        await agent.outbound_transport.send('to_key', 'from_key', msg)
-
+        await agent.conductor.send('to_key', 'from_key', msg)
 
     # Main loop
     try:

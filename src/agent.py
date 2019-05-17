@@ -1,13 +1,12 @@
 """ Agent """
 import asyncio
 
+from conductor import Conductor
 from config import Config
 from errors import NoRegisteredRouteException, UnknownTransportException
 from hooks import self_hook_point, hook
 from messages.message import Message
 from indy_sdk_utils import open_wallet
-import transport.inbound.standard_in as StdIn
-import transport.outbound.standard_out as StdOut
 
 class Agent:
     """ Agent """
@@ -16,10 +15,15 @@ class Agent:
     def __init__(self):
         self.config = None
         self.wallet_handle = None
-        self.inbound_transport = None
-        self.outbound_transport = None
+        self.conductor = None
         self.routes = {}
         self.hooks = Agent.hooks.copy() # Copy statically configured hooks
+
+    def hook(self, hook_name):
+        return hook(self, hook_name)
+
+    def register_hook(self, hook_name, hook_fn):
+        hook(self, hook_name)(hook_fn)
 
     @staticmethod
     async def from_config(config: Config):
@@ -30,38 +34,20 @@ class Agent:
             agent.config.passphrase,
             agent.config.ephemeral
         )
-
-        # TODO: Better transport selection
-        if not agent.config.inbound_transport == 'stdin':
-            raise UnknownTransportException
-
-        agent.inbound_transport = StdIn
-
-        if not agent.config.outbound_transport == 'stdout':
-            raise UnknownTransportException
-
-        agent.outbound_transport = StdOut
-
+        agent.conductor = Conductor.from_wallet_handle_config(agent.wallet_handle, config)
         return agent
 
-    def hook(self, hook_name):
-        return hook(self, hook_name)
-
     async def start(self):
-        asyncio.ensure_future(self.inbound_transport.start())
+        await self.conductor.start()
 
         if self.config.num_messages == -1:
             while True:
-                await self.handle_inbound()
+                msg = await self.conductor.recv()
+                await self.handle(msg)
         else:
             for _ in range(1, self.config.num_messages):
-                await self.handle_inbound()
-
-    async def handle_inbound(self):
-        msg_bytes = await self.inbound_transport.recv()
-        msg = await self.unpack(msg_bytes)
-        await self.handle(msg)
-
+                msg = await self.conductor.recv()
+                await self.handle(msg)
 
     def route(self, msg_type):
         """ Register route decorator. """
@@ -70,6 +56,7 @@ class Agent:
 
         return register_route_dec
 
+    # Hooks discovered at runtime
     @self_hook_point()
     async def handle(self, msg, *args, **kwargs):
         """ Route message """
@@ -77,9 +64,3 @@ class Agent:
             raise NoRegisteredRouteException
 
         await self.routes[msg.type](self, msg, *args, **kwargs)
-
-    # Hooks discovered at runtime
-    @self_hook_point()
-    async def unpack(self, packed_message):
-        """ Perform processing to convert bytes off the wire to Message. """
-        return Message.deserialize(packed_message)
