@@ -15,7 +15,7 @@ async def test_routing():
     called_event = asyncio.Event()
 
     @agent.register_route('testing_type')
-    async def route_gets_called(msg, **kwargs):
+    async def route_gets_called(agent, msg, **kwargs):
         kwargs['event'].set()
 
     test_msg = MockMessage('testing_type', 'test')

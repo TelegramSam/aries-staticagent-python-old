@@ -1,3 +1,2 @@
-class InvalidRouteException(Exception): pass
-
 class NoRegisteredRouteException(Exception): pass
+class UnknownTransportException(Exception): pass
