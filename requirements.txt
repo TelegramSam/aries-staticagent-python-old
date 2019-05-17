@@ -1,2 +1,3 @@
 toml
 python3-indy
+pytest
