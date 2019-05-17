@@ -20,6 +20,7 @@ class Config:
     config: str
     wallet: str
     passphrase: str
+    ephemeral: bool
     inbound_transport: str
     outbound_transport: str
     log_level: int
@@ -28,6 +29,7 @@ class Config:
         self.config: str = None
         self.wallet: str = None
         self.passphrase: str = None
+        self.ephemeral: bool = None
         self.inbound_transport: str = None
         self.outbound_transport: str = None
         self.log_level: int = None
@@ -37,6 +39,7 @@ class Config:
         return {
             'wallet': 'agent',
             'passphrase': 'default',
+            'ephemeral': False,
             'inbound_transport': 'stdin',
             'outbound_transport': 'stdout',
             'log_level': 10
