@@ -105,7 +105,7 @@ class Conductor:
         return await utils.unpack(self.wallet_handle, message)
 
     async def send(self, to_did, to_key, from_key, msg):
-        meta = utils.get_did_metadata(self.wallet_handle, to_did)
+        meta = await utils.get_did_metadata(self.wallet_handle, to_did)
         wire_msg = await crypto.pack_message(
             self.wallet_handle,
             msg.serialize(),

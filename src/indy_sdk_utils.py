@@ -4,8 +4,8 @@ import json
 from messages.message import Message
 from indy import wallet, did, non_secrets, error, crypto
 
-async def get_did_metadata(wallet_handle, did):
-    meta = await did.get_did_metadata(wallet_handle, did)
+async def get_did_metadata(wallet_handle, subject_did):
+    meta = await did.get_did_metadata(wallet_handle, subject_did)
     return json.loads(meta) if meta else None
 
 async def unpack(wallet_handle, message_bytes):

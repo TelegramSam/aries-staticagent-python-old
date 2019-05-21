@@ -34,7 +34,6 @@ class Agent:
             agent.config.passphrase,
             agent.config.ephemeral
         )
-        agent.conductor = Conductor.from_wallet_handle_config(agent.wallet_handle, config)
         return agent
 
     async def start(self):
