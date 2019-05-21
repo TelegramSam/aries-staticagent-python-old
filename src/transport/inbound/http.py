@@ -1,16 +1,18 @@
-import aiohttp
+from aiohttp import web
 from transport.connection import Connection, ConnectionType
 
 async def accept(loop, connection_queue, **kwargs):
+    print('Starting http server on /indy ...')
     routes = [
-        aiohttp.web.get('/indy', post_handle)
+        web.post('/indy', post_handle)
     ]
-    app = aiohttp.web.Application()
+    app = web.Application()
     app['connection_queue'] = connection_queue
     app.add_routes(routes)
-    runner = aiohttp.web.AppRunner(app)
-    loop.run_until_complete(runner)
-    server = aiohttp.web.TCPSite(runner=runner, port=kwargs['port'])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    server = web.TCPSite(runner=runner, port=kwargs['port'])
+    print('Starting on localhost:{}'.format(kwargs['port']))
     await server.start()
 
 async def post_handle(request):
@@ -19,9 +21,9 @@ async def post_handle(request):
     await request.app['connection_queue'].put(conn)
     await conn.wait()
     if conn.new_msg:
-        return aiohttp.web.Response(text=conn.new_msg)
+        return web.Response(text=conn.new_msg)
     else:
-        raise aiohttp.web.HTTPAccepted()
+        raise web.HTTPAccepted()
 
 class HTTPConnection(Connection):
     def __init__(self, msg):
