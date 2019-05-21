@@ -136,6 +136,13 @@ class Config:
             type=int,
             help='Process NUM number of messages and stop'
         )
+        parser.add_argument(
+            '--port',
+            dest='port',
+            metavar='PORT',
+            type=int,
+            help='Run inbound transport on PORT'
+        )
         return parser
 
     def load_options_from_file(self, config_path: str):
