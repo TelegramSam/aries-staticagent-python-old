@@ -1,7 +1,43 @@
 """ Wrappers around Indy-SDK functions to overcome shortcomings in the SDK.
 """
 import json
-from indy import wallet, did, non_secrets, error
+from messages.message import Message
+from indy import wallet, did, non_secrets, error, crypto
+
+async def unpack(wallet_handle, message_bytes):
+    try:
+        unpacked = json.loads(
+            await crypto.unpack_message(
+                wallet_handle,
+                message_bytes
+            )
+        )
+
+        from_key = None
+        from_did = None
+        if 'sender_verkey' in unpacked:
+            from_key = unpacked['sender_verkey']
+            from_did = await did_for_key(wallet_handle, unpacked['sender_verkey'])
+
+        to_key = unpacked['recipient_verkey']
+        to_did = await did_for_key(wallet_handle, unpacked['recipient_verkey'])
+
+        msg = Message.deserialize(unpacked['message'])
+
+        msg.context = {
+            'from_did': from_did,
+            'to_did': to_did,
+            'from_key': from_key,
+            'to_key': to_key
+        }
+        return msg
+    except error.IndyError as indy_error:
+        if indy_error.error_code is error.ErrorCode.CommonInvalidStructure:
+            msg = Message.deserialize(message_bytes)
+            msg.context = None
+            return msg
+        raise indy_error
+
 
 async def open_wallet(wallet_name, passphrase, ephemeral=False):
     """ Create if not already exists and open wallet.
