@@ -8,6 +8,8 @@ from messages.message import Message
 import indy_sdk_utils as utils
 import transport.inbound.standard_in as StdIn
 import transport.outbound.standard_out as StdOut
+import transport.inbound.http as HttpIn
+import transport.outbound.http as HttpOut
 
 class Conductor:
     hooks = {}
@@ -23,25 +25,37 @@ class Conductor:
         self.hooks = Conductor.hooks.copy()
 
     @staticmethod
+    def in_transport_str_to_mod(transport_str):
+        return {
+            'stdin': StdIn,
+            'http': HttpIn
+        }[transport_str]
+
+    @staticmethod
+    def out_transport_str_to_mod(transport_str):
+        return {
+            'stdout': StdOut,
+            'http': HttpOut,
+        }[transport_str]
+
+    @staticmethod
     def from_wallet_handle_config(wallet_handle, config: Config):
         conductor = Conductor()
         conductor.wallet_handle = wallet_handle
         conductor.transport_options = config.transport_options()
 
-        # TODO: Better transport selection
-        if not config.inbound_transport == 'stdin':
+        try:
+            conductor.inbound_transport = \
+                    Conductor.in_transport_str_to_mod(config.inbound_transport)
+            conductor.outbound_transport = \
+                    Conductor.out_transport_str_to_mod(config.outbound_transport)
+        except KeyError:
             raise UnknownTransportException
 
-        conductor.inbound_transport = StdIn
-
-        if not config.outbound_transport == 'stdout':
-            raise UnknownTransportException
-
-        conductor.outbound_transport = StdOut
         return conductor
 
     async def start(self):
-        asyncio.create_task(
+        await asyncio.create_task( # TODO this await may be troublesome...
             self.inbound_transport.accept(
                 self.loop,
                 self.connection_queue,
@@ -90,20 +104,18 @@ class Conductor:
         """ Perform processing to convert bytes off the wire to Message. """
         return await utils.unpack(self.wallet_handle, message)
 
-    async def send(self, to_key, from_key, msg):
-        if to_key not in self.open_connections:
-            conn = await self.outbound_transport.open(self.loop)
-            out = 'TO: ' + to_key
-            out += '\nFROM: ' + from_key
-            out += '\nBODY: ' + msg.serialize()
-            await conn.send(out)
-            return
-
-        conn = self.open_connections[to_key]
+    async def send(self, to_did, to_key, from_key, msg):
+        meta = utils.get_did_metadata(self.wallet_handle, to_did)
         wire_msg = await crypto.pack_message(
             self.wallet_handle,
             msg.serialize(),
             [to_key],
             from_key
         )
+
+        if to_key not in self.open_connections:
+            conn = await self.outbound_transport.open(**meta)
+        else:
+            conn = self.open_connections[to_key]
+
         conn.send(wire_msg)

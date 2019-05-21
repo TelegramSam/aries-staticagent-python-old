@@ -14,5 +14,5 @@ class HTTPOutConnection(Connection):
                     print(resp.status)
                     print(await resp.text())
 
-async def open(endpoint):
-    return HTTPOutConnection(endpoint)
+async def open(**metadata):
+    return HTTPOutConnection(metadata['their_endpoint'])
