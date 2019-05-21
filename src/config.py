@@ -24,6 +24,7 @@ class Config:
     inbound_transport: str
     outbound_transport: str
     num_messages: int
+    port: int
     log_level: int
 
     def __init__(self):
@@ -34,6 +35,7 @@ class Config:
         self.inbound_transport: str = None
         self.outbound_transport: str = None
         num_messages: int = None
+        self.port: int = None
         self.log_level: int = None
 
     @staticmethod
@@ -45,6 +47,7 @@ class Config:
             'inbound_transport': 'stdin',
             'outbound_transport': 'stdout',
             'num_messages': -1,
+            'port': None,
             'log_level': 10
         }
 
@@ -175,6 +178,9 @@ class Config:
                         self.__dict__[var] = options[var]
                 else:
                     self.__dict__[var] = options[var]
+
+    def transport_options(self):
+        return {'port': self.port} if self.port else {}
 
 
 if __name__ == '__main__':

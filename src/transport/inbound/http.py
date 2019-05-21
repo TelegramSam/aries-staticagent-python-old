@@ -30,7 +30,8 @@ class HTTPConnection(Connection):
         self.new_msg = None
 
     async def recv(self):
-        return self.msg
+        self.set_send()
+        yield self.msg
 
     async def send(self, new_msg):
         self.new_msg = new_msg

@@ -39,5 +39,14 @@ class Connection:
     def close(self):
         self.done.set()
 
-    def upgrade(self):
+    def closed(self):
+        return self.done.is_set()
+
+    def set_duplex(self):
         self.flags = ConnectionType.DUPLEX
+
+    def set_send(self):
+        self.flags = ConnectionType.SEND
+
+    def set_recv(self):
+        self.flags = ConnectionType.RECV
