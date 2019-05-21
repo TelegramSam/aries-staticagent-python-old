@@ -1,11 +1,14 @@
 import asyncio
 import sys
+from transport.connection import Connection, ConnectionType
 
-loop = asyncio.get_event_loop()
+class StdOutConnection(Connection):
+    def __init__(self, loop):
+        super().__init__(ConnectionType.SEND)
+        self.loop = loop
 
-async def send(to_key, from_key, msg):
-    out = "To: " + to_key
-    out += "\nFrom: " + from_key
-    out += "\nBody: " + msg.serialize()
+    async def send(self, msg: str):
+        await self.loop.run_in_executor(None, print, msg)
 
-    await loop.run_in_executor(None, print, out)
+async def open(loop):
+    return StdOutConnection(loop)

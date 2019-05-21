@@ -1,8 +1,7 @@
 import asyncio
 from config import Config
 from messages.message import Message
-from messages.inbound_message import InboundMessage
-from hooks import self_hook_point
+#from hooks import self_hook_point
 import transport.inbound.standard_in as StdIn
 import transport.outbound.standard_out as StdOut
 from errors import UnknownTransportException
@@ -12,6 +11,10 @@ class Conductor:
         self.wallet_handle = None
         self.inbound_transport = None
         self.outbound_transport = None
+        self.connection_queue = asyncio.Queue()
+        self.open_connections = {}
+        self.message_queue = asyncio.Queue()
+        self.loop = asyncio.get_event_loop()
 
     @staticmethod
     def from_wallet_handle_config(wallet_handle, config: Config):
@@ -31,16 +34,23 @@ class Conductor:
         return con
 
     async def start(self):
-        asyncio.ensure_future(self.inbound_transport.start())
+        asyncio.create_task(self.inbound_transport.accept(self.loop, self.connection_queue))
+        while True:
+            conn = await self.connection_queue.get()
+            msg = await self.unpack(await conn.recv())
+            self.message_queue.put_nowait(msg)
+            self.open_connections[msg.context['from_key']] = conn
 
     async def recv(self):
-        msg_bytes = await self.inbound_transport.recv()
-        msg = await self.unpack(msg_bytes)
-        return msg
+        return await self.message_queue.get()
 
     async def unpack(self, message: bytes):
         """ Perform processing to convert bytes off the wire to Message. """
         return Message.deserialize(message)
 
     async def send(self, to_key, from_key, msg):
-        await self.outbound_transport.send(to_key, from_key, msg)
+        conn = await self.outbound_transport.open(self.loop)
+        out = 'TO: ' + to_key
+        out += '\nFROM: ' + from_key
+        out += '\nBODY: ' + msg.serialize()
+        await conn.send(out)
