@@ -1,4 +1,6 @@
 import asyncio
+from contextlib import suppress
+
 from indy import crypto
 
 from config import Config
@@ -21,8 +23,8 @@ class Conductor:
         self.connection_queue = asyncio.Queue()
         self.open_connections = {}
         self.message_queue = asyncio.Queue()
-        self.loop = asyncio.get_event_loop()
         self.hooks = Conductor.hooks.copy()
+        self.async_tasks = []
 
     @staticmethod
     def in_transport_str_to_mod(transport_str):
@@ -54,20 +56,31 @@ class Conductor:
 
         return conductor
 
+    def schedule_task(self, coro):
+        task = asyncio.create_task(coro)
+        self.async_tasks.append(task)
+
     async def start(self):
-        await asyncio.create_task( # TODO this await may be troublesome...
+        inbound_task = asyncio.create_task(
             self.inbound_transport.accept(
-                self.loop,
                 self.connection_queue,
                 **self.transport_options
             )
         )
-        asyncio.create_task(self.accept())
+        accept_task = asyncio.create_task(self.accept())
+        await asyncio.gather(inbound_task, accept_task)
+
+    async def shutdown(self):
+        await self.message_queue.join()
+        for task in self.async_tasks:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
 
     async def accept(self):
         while True:
             conn = await self.connection_queue.get()
-            asyncio.create_task(self.message_reader(conn))
+            self.schedule_task(self.message_reader(conn))
 
     async def message_reader(self, conn):
         async for msg_bytes in conn.recv():
@@ -75,9 +88,14 @@ class Conductor:
                 continue
 
             msg = await self.unpack(msg_bytes)
+            if not msg.context:
+                # plaintext messages are ignored
+                conn.close()
+                continue
+
             self.message_queue.put_nowait(msg)
-            if not msg.context or not msg.context['from_key']:
-                # Plaintext and anonymous messages cannot be return routed
+            if not msg.context['from_key']:
+                # anonymous messages cannot be return routed
                 conn.close()
                 continue
 
@@ -90,14 +108,18 @@ class Conductor:
                 continue
 
             self.open_connections[msg.context['from_key']] = conn
-            asyncio.create_task(self.connection_cleanup(conn, msg.context['from_key']))
+            self.schedule_task(self.connection_cleanup(conn, msg.context['from_key']))
 
     async def connection_cleanup(self, conn, conn_id):
         await conn.wait()
         del self.open_connections[conn_id]
 
     async def recv(self):
-        return await self.message_queue.get()
+        msg = await self.message_queue.get()
+        return msg
+
+    async def message_handled(self):
+        self.message_queue.task_done()
 
     @self_hook_point()
     async def unpack(self, message: bytes):
@@ -118,4 +140,7 @@ class Conductor:
         else:
             conn = self.open_connections[to_key]
 
-        conn.send(wire_msg)
+        await conn.send(wire_msg)
+
+        if not conn.closed() and conn.can_recv():
+            self.schedule_task(self.message_reader(conn))

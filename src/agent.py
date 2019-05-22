@@ -18,6 +18,7 @@ class Agent:
         self.conductor = None
         self.routes = {}
         self.hooks = Agent.hooks.copy() # Copy statically configured hooks
+        self.main_loop = None
 
     def hook(self, hook_name):
         return hook(self, hook_name)
@@ -37,16 +38,25 @@ class Agent:
         return agent
 
     async def start(self):
-        await self.conductor.start()
+        conductor_task = asyncio.create_task(self.conductor.start())
+        self.main_loop = asyncio.create_task(self.loop())
+        await asyncio.gather(conductor_task, self.main_loop)
 
+    async def shutdown(self):
+        await self.conductor.shutdown()
+        self.main_loop.cancel()
+
+    async def loop(self):
         if self.config.num_messages == -1:
             while True:
                 msg = await self.conductor.recv()
                 await self.handle(msg)
+                await self.conductor.message_handled()
         else:
-            for _ in range(1, self.config.num_messages):
+            for _ in range(0, self.config.num_messages):
                 msg = await self.conductor.recv()
                 await self.handle(msg)
+                await self.conductor.message_handled()
 
     def route(self, msg_type):
         """ Register route decorator. """

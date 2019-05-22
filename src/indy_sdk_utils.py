@@ -8,6 +8,9 @@ async def get_did_metadata(wallet_handle, subject_did):
     meta = await did.get_did_metadata(wallet_handle, subject_did)
     return json.loads(meta) if meta else None
 
+async def set_did_metadata(wallet_handle, subject_did, metadata):
+    await did.set_did_metadata(wallet_handle, subject_did, json.dumps(metadata))
+
 async def unpack(wallet_handle, message_bytes):
     try:
         unpacked = json.loads(
@@ -75,11 +78,11 @@ async def open_wallet(wallet_name, passphrase, ephemeral=False):
     )
     return wallet_handle
 
-async def create_and_store_my_did(wallet_handle):
+async def create_and_store_my_did(wallet_handle, **kwargs):
     """ Create and store my DID, adding a map from verkey to DID using the
         non_secrets API.
     """
-    (my_did, my_vk) = await did.create_and_store_my_did(wallet_handle, '{}')
+    (my_did, my_vk) = await did.create_and_store_my_did(wallet_handle, json.dumps(kwargs))
 
     await non_secrets.add_wallet_record(
         wallet_handle,

@@ -1,7 +1,7 @@
 from aiohttp import web
 from transport.connection import Connection, ConnectionType
 
-async def accept(loop, connection_queue, **kwargs):
+async def accept(connection_queue, **kwargs):
     print('Starting http server on /indy ...')
     routes = [
         web.post('/indy', post_handle)
@@ -21,7 +21,7 @@ async def post_handle(request):
     await request.app['connection_queue'].put(conn)
     await conn.wait()
     if conn.new_msg:
-        return web.Response(text=conn.new_msg)
+        return web.Response(body=conn.new_msg)
     else:
         raise web.HTTPAccepted()
 

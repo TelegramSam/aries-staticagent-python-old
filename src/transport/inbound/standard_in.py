@@ -3,9 +3,9 @@ import sys
 from transport.connection import Connection, ConnectionType
 
 class StdConnection(Connection):
-    def __init__(self, loop):
+    def __init__(self):
         super().__init__(ConnectionType.RECV)
-        self.loop = loop
+        self.loop = asyncio.get_running_loop()
 
     async def recv(self):
         while True:
@@ -19,6 +19,6 @@ class StdConnection(Connection):
                 self.close()
                 yield msg
 
-async def accept(loop, connection_queue):
+async def accept(connection_queue):
     print("Accepting on stdin")
-    await connection_queue.put(StdConnection(loop))
+    await connection_queue.put(StdConnection())
