@@ -20,7 +20,7 @@ class ConnectionType(Flag):
 class Connection:
     def __init__(self, flags=ConnectionType.UNDEFINED):
         self.flags = flags
-        self.reciever_attached = False
+        self.recv_lock = asyncio.Lock()
         self.done = asyncio.Event()
 
     async def recv(self):

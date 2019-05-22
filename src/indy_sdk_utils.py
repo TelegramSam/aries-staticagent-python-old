@@ -5,8 +5,16 @@ from messages.message import Message
 from indy import wallet, did, non_secrets, error, crypto
 
 async def get_did_metadata(wallet_handle, subject_did):
-    meta = await did.get_did_metadata(wallet_handle, subject_did)
-    return json.loads(meta) if meta else None
+    meta = {}
+    try:
+        meta = await did.get_did_metadata(wallet_handle, subject_did)
+    except error.IndyError as e:
+        if e.error_code is error.ErrorCode.WalletItemNotFound:
+            pass
+        else:
+            raise e
+
+    return json.loads(meta) if meta else {}
 
 async def set_did_metadata(wallet_handle, subject_did, metadata):
     await did.set_did_metadata(wallet_handle, subject_did, json.dumps(metadata))
@@ -56,8 +64,8 @@ async def open_wallet(wallet_name, passphrase, ephemeral=False):
     # Handle ephemeral wallets
     if ephemeral:
         try:
-            await wallet.delete_wallet(wallet_config, wallet_credentials)
             print("Removing ephemeral wallet.")
+            await wallet.delete_wallet(wallet_config, wallet_credentials)
         except error.IndyError as e:
             if e.error_code is error.ErrorCode.WalletNotFoundError:
                 pass  # This is ok, and expected.

@@ -13,6 +13,8 @@ from config import Config
 from conductor import Conductor
 from messages.message import Message
 
+random.seed('testing_seed')
+
 @pytest.fixture
 def random_string_generator():
     def _random_string_generator(length):
@@ -46,7 +48,7 @@ def agent_factory(config_factory):
 
 @pytest.fixture
 def connect_agents():
-    async def _connect_agents(a, b):
+    async def _connect_agents(a, b, **kwargs):
         a_did, a_vk = await utils.create_and_store_my_did(
             a.wallet_handle,
             seed = '0000000000000000000000000000000a'
@@ -62,11 +64,12 @@ def connect_agents():
             {'their_endpoint': 'http://localhost:{}/indy'.format(b.config.port)}
         )
         await utils.store_their_did(b.wallet_handle, a_did, a_vk)
-        await utils.set_did_metadata(
-            b.wallet_handle,
-            a_did,
-            {'their_endpoint': 'http://localhost:{}/indy'.format(a.config.port)}
-        )
+        if 'client_server' not in kwargs:
+            await utils.set_did_metadata(
+                b.wallet_handle,
+                a_did,
+                {'their_endpoint': 'http://localhost:{}/indy'.format(a.config.port)}
+            )
         return a_did, a_vk, b_did, b_vk
     return _connect_agents
 
@@ -74,6 +77,12 @@ def connect_agents():
 async def connected_agents(agent_factory, connect_agents):
     alice, bob = await agent_factory(), await agent_factory()
     alice_did, alice_vk, bob_did, bob_vk = await connect_agents(alice, bob)
+    return (alice, alice_did, alice_vk, bob, bob_did, bob_vk)
+
+@pytest.fixture
+async def connected_client_server_agents(agent_factory, connect_agents):
+    alice, bob = await agent_factory(), await agent_factory()
+    alice_did, alice_vk, bob_did, bob_vk = await connect_agents(alice, bob, client_server=True)
     return (alice, alice_did, alice_vk, bob, bob_did, bob_vk)
 
 @pytest.fixture
@@ -120,3 +129,50 @@ async def test_http_return_route(ping_pong_agents, message):
     await alice.conductor.send(bob_did, bob_vk, alice_vk, ping)
     await asyncio.wait_for(alice.ponged.wait(), 20)
     assert alice.ponged.is_set()
+
+@pytest.mark.asyncio
+async def test_http_return_route_no_endpoint(connected_client_server_agents):
+    (alice, alice_did, alice_vk, bob, bob_did, bob_vk) = connected_client_server_agents
+
+    alice.ponged = asyncio.Event()
+
+    @bob.route('ping')
+    async def respond(agent, msg):
+        print('got ping, sending pong should queue message')
+        pong = Message({'@type': 'pong'})
+        await agent.conductor.send(
+            msg.context['from_did'],
+            msg.context['from_key'],
+            msg.context['to_key'],
+            pong
+        )
+        print('sent pong to queue, probably')
+        assert agent.conductor.queues[msg.context['from_key']].qsize() == 1
+
+    @bob.route('noop')
+    async def noop(agent, msg):
+        pass
+
+    @alice.route('pong')
+    async def got_pong(agent, msg):
+        print('got pong')
+        agent.ponged.set()
+
+    gathered_agent_tasks = asyncio.gather(alice.start(), bob.start())
+
+    # No return route, can't respond directly
+    ping = Message({'@type': 'ping'})
+    await alice.conductor.send(bob_did, bob_vk, alice_vk, ping)
+
+    print('sending noop to pump bob\'s queue')
+    noop = Message({'@type': 'noop', '~transport': {'return_route': 'all'}})
+    await alice.conductor.send(bob_did, bob_vk, alice_vk, noop)
+
+    await asyncio.wait_for(alice.ponged.wait(), 5)
+    assert alice.ponged.is_set()
+
+    await alice.shutdown()
+    await bob.shutdown()
+    gathered_agent_tasks.cancel()
+    with suppress(asyncio.CancelledError):
+        await gathered_agent_tasks

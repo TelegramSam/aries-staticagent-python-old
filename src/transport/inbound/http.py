@@ -3,7 +3,6 @@ from aiohttp import web
 from transport.connection import Connection, ConnectionType
 
 async def accept(connection_queue, **kwargs):
-    print('Starting http server on /indy ...')
     routes = [
         web.post('/indy', post_handle)
     ]

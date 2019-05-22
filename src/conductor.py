@@ -85,7 +85,7 @@ class Conductor:
             self.schedule_task(self.message_reader(conn))
 
     async def message_reader(self, conn):
-        conn.reciever_attached = True
+        await conn.recv_lock.acquire()
         async for msg_bytes in conn.recv():
             if not msg_bytes:
                 continue
@@ -118,6 +118,8 @@ class Conductor:
             if return_route == 'all':
                 self.open_connections[msg.context['from_key']] = conn
                 self.schedule_task(self.connection_cleanup(conn, msg.context['from_key']))
+                if conn_id in self.queues and self.queues[conn_id].qsize():
+                    self.schedule_task(self.pump_queue(conn, self.queues[conn_id]))
 
             elif return_route == 'none' and conn_id in self.open_connections:
                 del self.open_connections[conn_id]
@@ -126,7 +128,7 @@ class Conductor:
                 # TODO Implement thread return route
                 pass
 
-        conn.reciever_attached = False
+        conn.recv_lock.release()
 
     async def connection_cleanup(self, conn, conn_id):
         await conn.wait()
@@ -154,21 +156,10 @@ class Conductor:
             except ConnectionImpossible:
                 if to_key not in self.queues:
                     self.queues[to_key] = asyncio.Queue()
-                self.queues[to_key].put_nowait(msg)
+                self.queues[to_key].put_nowait((msg, to_key, from_key))
                 return
         else:
             conn = self.open_connections[to_key]
-
-        if to_key in self.queues:
-            if self.queues[to_key].qsize():
-                self.queues[to_key].put_nowait(msg)
-                msg = self.queues[to_key].get_nowait()
-
-            msg += {
-                '~transport': {
-                    'pending_message_count': self.queues[to_key].qsize()
-                }
-            }
 
         wire_msg = await crypto.pack_message(
             self.wallet_handle,
@@ -179,5 +170,21 @@ class Conductor:
 
         await conn.send(wire_msg)
 
-        if not conn.closed() and conn.can_recv() and not conn.reciever_attached:
+        if not conn.closed() and conn.can_recv() and not conn.recv_lock.locked():
             self.schedule_task(self.message_reader(conn))
+
+    async def pump_queue(self, conn, queue):
+        while conn.can_send() and not queue.empty():
+            msg, to_key, from_key = queue.get_nowait()
+            msg['~transport'] = {
+                'pending_message_count': queue.qsize()
+            }
+
+            wire_msg = await crypto.pack_message(
+                self.wallet_handle,
+                msg.serialize(),
+                [to_key],
+                from_key
+            )
+
+            await conn.send(wire_msg)
