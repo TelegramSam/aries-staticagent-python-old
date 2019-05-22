@@ -20,3 +20,4 @@ if __name__ == '__main__':
         loop.run_until_complete(agent.start())
     except KeyboardInterrupt:
         print("exiting")
+        loop.run_until_complete(agent.shutdown())
