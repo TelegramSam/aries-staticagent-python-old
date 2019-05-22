@@ -83,6 +83,7 @@ class Conductor:
             self.schedule_task(self.message_reader(conn))
 
     async def message_reader(self, conn):
+        conn.reciever_attached = True
         async for msg_bytes in conn.recv():
             if not msg_bytes:
                 continue
@@ -90,10 +91,11 @@ class Conductor:
             msg = await self.unpack(msg_bytes)
             if not msg.context:
                 # plaintext messages are ignored
-                conn.close()
+                conn.close() # TODO keeping connection open may be appropriate
                 continue
 
             self.message_queue.put_nowait(msg)
+
             if not msg.context['from_key']:
                 # anonymous messages cannot be return routed
                 conn.close()
@@ -107,12 +109,27 @@ class Conductor:
                 # Connection thinks there are more messages so don't close
                 continue
 
-            self.open_connections[msg.context['from_key']] = conn
-            self.schedule_task(self.connection_cleanup(conn, msg.context['from_key']))
+            # Return route handling
+            return_route = msg['~transport']['return_route']
+            conn_id = msg.context['from_key']
+
+            if return_route == 'all':
+                self.open_connections[msg.context['from_key']] = conn
+                self.schedule_task(self.connection_cleanup(conn, msg.context['from_key']))
+
+            elif return_route == 'none' and conn_id in self.open_connections:
+                del self.open_connections[conn_id]
+
+            elif return_route == 'thread':
+                # TODO Implement thread return route
+                pass
+
+        conn.reciever_attached = False
 
     async def connection_cleanup(self, conn, conn_id):
         await conn.wait()
-        del self.open_connections[conn_id]
+        if conn_id in self.open_connections:
+            del self.open_connections[conn_id]
 
     async def recv(self):
         msg = await self.message_queue.get()
@@ -142,5 +159,5 @@ class Conductor:
 
         await conn.send(wire_msg)
 
-        if not conn.closed() and conn.can_recv():
+        if not conn.closed() and conn.can_recv() and not conn.reciever_attached:
             self.schedule_task(self.message_reader(conn))
