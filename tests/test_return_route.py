@@ -76,9 +76,8 @@ async def connected_agents(agent_factory, connect_agents):
     alice_did, alice_vk, bob_did, bob_vk = await connect_agents(alice, bob)
     return (alice, alice_did, alice_vk, bob, bob_did, bob_vk)
 
-
-@pytest.mark.asyncio
-async def test_http_return_route(connected_agents, event_loop):
+@pytest.fixture
+async def ping_pong_agents(connected_agents):
     (alice, alice_did, alice_vk, bob, bob_did, bob_vk) = connected_agents
 
     alice.ponged = asyncio.Event()
@@ -101,15 +100,23 @@ async def test_http_return_route(connected_agents, event_loop):
 
     gathered_agent_tasks = asyncio.gather(alice.start(), bob.start())
 
-    ping = Message({'@type': 'ping', '~transport': {'return_route': 'all'}})
-    await alice.conductor.send(bob_did, bob_vk, alice_vk, ping)
-    await asyncio.wait_for(alice.ponged.wait(), 20)
+    yield (alice, alice_did, alice_vk, bob, bob_did, bob_vk)
 
-    print('shutting down alice')
     await alice.shutdown()
-    print('shutting down bob')
     await bob.shutdown()
-    print('cancelling gathered tasks')
     gathered_agent_tasks.cancel()
     with suppress(asyncio.CancelledError):
         await gathered_agent_tasks
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('message', [
+    {'@type': 'ping', '~transport': {'return_route': 'all'}},
+    {'@type': 'ping'}
+])
+async def test_http_return_route(ping_pong_agents, message):
+    (alice, alice_did, alice_vk, bob, bob_did, bob_vk) = ping_pong_agents
+
+    ping = Message(message)
+    await alice.conductor.send(bob_did, bob_vk, alice_vk, ping)
+    await asyncio.wait_for(alice.ponged.wait(), 20)
+    assert alice.ponged.is_set()
