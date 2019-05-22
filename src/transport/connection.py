@@ -3,7 +3,11 @@ import asyncio
 from enum import Flag, auto
 
 class UnsupportedMethodException(Exception):
-    """ When Connection type does not support a given method
+    """ When Connection type does not support a given method.
+    """
+
+class ConnectionImpossible(Exception):
+    """ When a connection cannot be opened for the given relationship metadata.
     """
 
 class ConnectionType(Flag):

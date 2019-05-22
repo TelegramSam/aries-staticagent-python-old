@@ -22,7 +22,7 @@ async def post_handle(request):
     await request.app['connection_queue'].put(conn)
 
     try:
-        asyncio.wait_for(conn.wait(), 5)
+        await asyncio.wait_for(conn.wait(), 5)
     except asyncio.TimeoutError:
         conn.close()
 

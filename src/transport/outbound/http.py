@@ -1,5 +1,5 @@
 import aiohttp
-from transport.connection import Connection, ConnectionType
+from transport.connection import Connection, ConnectionType, ConnectionImpossible
 
 class HTTPOutConnection(Connection):
     def __init__(self, endpoint):
@@ -22,4 +22,7 @@ class HTTPOutConnection(Connection):
         yield self.new_msg
 
 async def open(**metadata):
+    if 'their_endpoint' not in metadata:
+        raise ConnectionImpossible()
+
     return HTTPOutConnection(metadata['their_endpoint'])

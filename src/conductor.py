@@ -8,6 +8,7 @@ from errors import UnknownTransportException
 from hooks import self_hook_point
 from messages.message import Message
 import indy_sdk_utils as utils
+from transport.connection import ConnectionImpossible
 import transport.inbound.standard_in as StdIn
 import transport.outbound.standard_out as StdOut
 import transport.inbound.http as HttpIn
@@ -22,6 +23,7 @@ class Conductor:
         self.transport_options = {}
         self.connection_queue = asyncio.Queue()
         self.open_connections = {}
+        self.queues = {}
         self.message_queue = asyncio.Queue()
         self.hooks = Conductor.hooks.copy()
         self.async_tasks = []
@@ -145,17 +147,35 @@ class Conductor:
 
     async def send(self, to_did, to_key, from_key, msg):
         meta = await utils.get_did_metadata(self.wallet_handle, to_did)
+
+        if to_key not in self.open_connections:
+            try:
+                conn = await self.outbound_transport.open(**meta)
+            except ConnectionImpossible:
+                if to_key not in self.queues:
+                    self.queues[to_key] = asyncio.Queue()
+                self.queues[to_key].put_nowait(msg)
+                return
+        else:
+            conn = self.open_connections[to_key]
+
+        if to_key in self.queues:
+            if self.queues[to_key].qsize():
+                self.queues[to_key].put_nowait(msg)
+                msg = self.queues[to_key].get_nowait()
+
+            msg += {
+                '~transport': {
+                    'pending_message_count': self.queues[to_key].qsize()
+                }
+            }
+
         wire_msg = await crypto.pack_message(
             self.wallet_handle,
             msg.serialize(),
             [to_key],
             from_key
         )
-
-        if to_key not in self.open_connections:
-            conn = await self.outbound_transport.open(**meta)
-        else:
-            conn = self.open_connections[to_key]
 
         await conn.send(wire_msg)
 
