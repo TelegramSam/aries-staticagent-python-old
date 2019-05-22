@@ -1,3 +1,4 @@
+import asyncio
 from aiohttp import web
 from transport.connection import Connection, ConnectionType
 
@@ -19,11 +20,16 @@ async def post_handle(request):
     msg = await request.read()
     conn = HTTPConnection(msg)
     await request.app['connection_queue'].put(conn)
-    await conn.wait()
+
+    try:
+        asyncio.wait_for(conn.wait(), 5)
+    except asyncio.TimeoutError:
+        conn.close()
+
     if conn.new_msg:
         return web.Response(body=conn.new_msg)
-    else:
-        raise web.HTTPAccepted()
+
+    raise web.HTTPAccepted()
 
 class HTTPConnection(Connection):
     def __init__(self, msg):
