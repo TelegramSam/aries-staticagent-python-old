@@ -26,7 +26,7 @@ class Conductor:
         self.queues = {}
         self.message_queue = asyncio.Queue()
         self.hooks = Conductor.hooks.copy()
-        self.async_tasks = []
+        self.async_tasks = asyncio.Queue()
 
     @staticmethod
     def in_transport_str_to_mod(transport_str):
@@ -58,9 +58,9 @@ class Conductor:
 
         return conductor
 
-    def schedule_task(self, coro):
+    def schedule_task(self, coro, can_cancel=True):
         task = asyncio.create_task(coro)
-        self.async_tasks.append(task)
+        self.async_tasks.put_nowait((can_cancel, task))
 
     async def start(self):
         inbound_task = asyncio.create_task(
@@ -74,9 +74,17 @@ class Conductor:
 
     async def shutdown(self):
         await self.message_queue.join()
-        for task in self.async_tasks:
-            task.cancel()
-            with suppress(asyncio.CancelledError):
+
+        for _, conn in self.open_connections.items():
+            conn.close()
+
+        while not self.async_tasks.empty():
+            can_cancel, task = self.async_tasks.get_nowait()
+            if can_cancel:
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
+            else:
                 await task
 
     async def accept(self):
@@ -103,7 +111,22 @@ class Conductor:
                 conn.close()
                 continue
 
-            if not '~transport' in msg or 'return_route' not in msg['~transport']:
+            if not '~transport' in msg:
+                continue
+
+            if 'pending_message_count' in msg['~transport'] \
+                    and msg['~transport']['pending_message_count']:
+
+                self.schedule_task(
+                    self.pump_remote_queue(
+                        msg.context['from_key'],
+                        msg.context['from_did'],
+                        msg.context['to_key']
+                    ),
+                    False
+                )
+
+            if 'return_route' not in msg['~transport']:
                 if not conn.can_recv():
                     # Can't get any more messages and not marked as
                     # return_route so close
@@ -117,9 +140,9 @@ class Conductor:
 
             if return_route == 'all':
                 self.open_connections[msg.context['from_key']] = conn
-                self.schedule_task(self.connection_cleanup(conn, msg.context['from_key']))
+                self.schedule_task(self.connection_cleanup(conn, msg.context['from_key']), False)
                 if conn_id in self.queues and self.queues[conn_id].qsize():
-                    self.schedule_task(self.pump_queue(conn, self.queues[conn_id]))
+                    self.schedule_task(self.pump_queue(conn, self.queues[conn_id]), False)
 
             elif return_route == 'none' and conn_id in self.open_connections:
                 del self.open_connections[conn_id]
@@ -147,10 +170,18 @@ class Conductor:
         """ Perform processing to convert bytes off the wire to Message. """
         return await utils.unpack(self.wallet_handle, message)
 
-    async def send(self, to_did, to_key, from_key, msg):
-        meta = await utils.get_did_metadata(self.wallet_handle, to_did)
+    async def send(self, msg, to_key, **kwargs):
+        from_key = None if 'from_key' not in kwargs else kwargs['from_key']
+        to_did = None if 'to_did' not in kwargs else kwargs['to_did']
+        meta = None if 'meta' not in kwargs else kwargs['meta']
 
-        if to_key not in self.open_connections:
+        if meta == None:
+            if not to_did:
+                meta = await utils.get_key_metadata(self.wallet_handle, to_key)
+            else:
+                meta = await utils.get_did_metadata(self.wallet_handle, to_did)
+
+        if to_key not in self.open_connections or self.open_connections[to_key].closed():
             try:
                 conn = await self.outbound_transport.open(**meta)
             except ConnectionImpossible:
@@ -176,9 +207,11 @@ class Conductor:
     async def pump_queue(self, conn, queue):
         while conn.can_send() and not queue.empty():
             msg, to_key, from_key = queue.get_nowait()
-            msg['~transport'] = {
-                'pending_message_count': queue.qsize()
-            }
+
+            if '~transport' not in msg:
+                msg['~transport'] = {}
+
+            msg['~transport']['pending_message_count'] = queue.qsize()
 
             wire_msg = await crypto.pack_message(
                 self.wallet_handle,
@@ -188,3 +221,8 @@ class Conductor:
             )
 
             await conn.send(wire_msg)
+
+    async def pump_remote_queue(self, to_key, to_did, from_key):
+        #TODO define noop somewhere else
+        noop = Message({'@type': 'noop', '~transport': {'return_route': 'all'}})
+        await self.send(noop, to_key, to_did=to_did, from_key=from_key)

@@ -4,6 +4,21 @@ import json
 from messages.message import Message
 from indy import wallet, did, non_secrets, error, crypto
 
+async def set_key_metadata(wallet_handle, key, metadata):
+    await did.set_key_metadata(wallet_handle, key, metadata)
+
+async def get_key_metadata(wallet_handle, key):
+    meta = {}
+    try:
+        meta = await did.get_key_metadata(wallet_handle, key)
+    except error.IndyError as e:
+        if e.error_code is error.ErrorCode.WalletItemNotFound:
+            pass
+        else:
+            raise e
+
+    return json.loads(meta) if meta else {}
+
 async def get_did_metadata(wallet_handle, subject_did):
     meta = {}
     try:

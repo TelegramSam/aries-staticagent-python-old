@@ -96,10 +96,10 @@ async def ping_pong_agents(connected_agents):
         print('got ping')
         pong = Message({'@type': 'pong'})
         await agent.conductor.send(
-            msg.context['from_did'],
+            pong,
             msg.context['from_key'],
-            msg.context['to_key'],
-            pong
+            to_did=msg.context['from_did'],
+            from_key=msg.context['to_key']
         )
 
     @alice.route('pong')
@@ -111,6 +111,7 @@ async def ping_pong_agents(connected_agents):
 
     yield (alice, alice_did, alice_vk, bob, bob_did, bob_vk)
 
+    print('shutting down')
     await alice.shutdown()
     await bob.shutdown()
     gathered_agent_tasks.cancel()
@@ -126,7 +127,7 @@ async def test_http_return_route(ping_pong_agents, message):
     (alice, alice_did, alice_vk, bob, bob_did, bob_vk) = ping_pong_agents
 
     ping = Message(message)
-    await alice.conductor.send(bob_did, bob_vk, alice_vk, ping)
+    await alice.conductor.send(ping, bob_vk, to_did=bob_did, from_key=alice_vk)
     await asyncio.wait_for(alice.ponged.wait(), 20)
     assert alice.ponged.is_set()
 
@@ -141,16 +142,25 @@ async def test_http_return_route_no_endpoint(connected_client_server_agents):
         print('got ping, sending pong should queue message')
         pong = Message({'@type': 'pong'})
         await agent.conductor.send(
-            msg.context['from_did'],
+            pong,
             msg.context['from_key'],
-            msg.context['to_key'],
-            pong
+            to_did=msg.context['from_did'],
+            from_key=msg.context['to_key']
         )
         print('sent pong to queue, probably')
-        assert agent.conductor.queues[msg.context['from_key']].qsize() == 1
+        print('queue up a noop')
+        await agent.conductor.send(
+            Message({'@type': 'noop'}),
+            msg.context['from_key'],
+            to_did=msg.context['from_did'],
+            from_key=msg.context['to_key']
+        )
+        assert agent.conductor.queues[msg.context['from_key']].qsize() == 2
 
+    @alice.route('noop')
     @bob.route('noop')
     async def noop(agent, msg):
+        print('noop')
         pass
 
     @alice.route('pong')
@@ -162,17 +172,18 @@ async def test_http_return_route_no_endpoint(connected_client_server_agents):
 
     # No return route, can't respond directly
     ping = Message({'@type': 'ping'})
-    await alice.conductor.send(bob_did, bob_vk, alice_vk, ping)
+    await alice.conductor.send(ping, bob_vk, to_did=bob_did, from_key=alice_vk)
 
     print('sending noop to pump bob\'s queue')
     noop = Message({'@type': 'noop', '~transport': {'return_route': 'all'}})
-    await alice.conductor.send(bob_did, bob_vk, alice_vk, noop)
+    await alice.conductor.send(noop, bob_vk, to_did=bob_did, from_key=alice_vk)
 
     await asyncio.wait_for(alice.ponged.wait(), 5)
-    assert alice.ponged.is_set()
 
     await alice.shutdown()
     await bob.shutdown()
     gathered_agent_tasks.cancel()
     with suppress(asyncio.CancelledError):
         await gathered_agent_tasks
+
+    assert alice.ponged.is_set()

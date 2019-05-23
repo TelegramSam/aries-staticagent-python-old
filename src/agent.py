@@ -18,7 +18,7 @@ class Agent:
         self.conductor = None
         self.routes = {}
         self.hooks = Agent.hooks.copy() # Copy statically configured hooks
-        self.main_loop = None
+        self.main_task = None
 
     def hook(self, hook_name):
         return hook(self, hook_name)
@@ -39,12 +39,13 @@ class Agent:
 
     async def start(self):
         conductor_task = asyncio.create_task(self.conductor.start())
-        self.main_loop = asyncio.create_task(self.loop())
-        await asyncio.gather(conductor_task, self.main_loop)
+        main_loop = asyncio.create_task(self.loop())
+        self.main_task = asyncio.gather(conductor_task, main_loop)
+        await self.main_task
 
     async def shutdown(self):
         await self.conductor.shutdown()
-        self.main_loop.cancel()
+        self.main_task.cancel()
 
     async def loop(self):
         if self.config.num_messages == -1:

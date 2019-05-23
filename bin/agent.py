@@ -13,7 +13,7 @@ if __name__ == '__main__':
 
     @agent.route('testing')
     async def testing_handler(agent, msg):
-        await agent.conductor.send('to_did', 'to_key', 'from_key', msg)
+        print('got testing')
 
     # Main loop
     try:
