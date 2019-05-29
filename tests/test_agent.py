@@ -4,6 +4,7 @@ from collections import namedtuple
 import pytest
 
 from agent import Agent
+from messages.message import Message
 
 MockMessage = namedtuple('MockMessage', ['type', 'test'])
 
@@ -19,6 +20,53 @@ async def test_routing():
         kwargs['event'].set()
 
     test_msg = MockMessage('testing_type', 'test')
+    await agent.handle(test_msg, event=called_event)
+
+    assert called_event.is_set()
+
+@pytest.mark.asyncio
+async def test_module_routing_explicit_def():
+    """ Test that routing to a module works. """
+    from module import route_def
+
+    agent = Agent()
+    called_event = asyncio.Event()
+
+    class TestModule:
+        routes = {}
+        PROTOCOL = 'test_protocol'
+
+        def __init__(self):
+            self.routes = TestModule.routes.copy()
+
+        @route_def(routes, 'test_protocol/1.0/testing_type')
+        async def route_gets_called(self, agent, msg, **kwargs):
+            kwargs['event'].set()
+
+    mod = TestModule()
+    agent.route_module(mod)
+
+    test_msg = Message({'@type': 'test_protocol/1.0/testing_type', 'test': 'test'})
+    await agent.handle(test_msg, event=called_event)
+
+    assert called_event.is_set()
+
+@pytest.mark.asyncio
+async def test_module_routing_simple():
+    """ Test that routing to a module works. """
+    agent = Agent()
+    called_event = asyncio.Event()
+
+    class TestModule:
+        PROTOCOL = 'test_protocol'
+
+        async def testing_type(self, agent, msg, *args, **kwargs):
+            kwargs['event'].set()
+
+    mod = TestModule()
+    agent.route_module(mod)
+
+    test_msg = Message({'@type': 'test_protocol/1.0/testing_type', 'test': 'test'})
     await agent.handle(test_msg, event=called_event)
 
     assert called_event.is_set()

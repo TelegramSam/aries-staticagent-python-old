@@ -3,23 +3,26 @@ import asyncio
 from contextlib import suppress
 
 from compat import create_task
-from conductor import Conductor
 from config import Config
-from errors import NoRegisteredRouteException, UnknownTransportException
+from errors import NoRegisteredRouteException
 from hooks import self_hook_point, hook
-from messages.message import Message
 from indy_sdk_utils import open_wallet
 
 class Agent:
     """ Agent """
+    # TODO Move hook stuff into Hookable
     hooks = {}
 
     def __init__(self):
+        self.hooks = Agent.hooks.copy() # Copy statically configured hooks
+
         self.config = None
         self.wallet_handle = None
         self.conductor = None
+
         self.routes = {}
-        self.hooks = Agent.hooks.copy() # Copy statically configured hooks
+        self.modules = {}
+
         self.main_task = None
 
     def hook(self, hook_name):
@@ -70,11 +73,34 @@ class Agent:
 
         return register_route_dec
 
+    def route_module(self, module_instance):
+        self.modules[module_instance.PROTOCOL] = module_instance
+
     # Hooks discovered at runtime
     @self_hook_point()
     async def handle(self, msg, *args, **kwargs):
         """ Route message """
-        if not msg.type in self.routes:
-            raise NoRegisteredRouteException
+        if msg.type in self.routes:
+            await self.routes[msg.type](self, msg, *args, **kwargs)
+            return
 
-        await self.routes[msg.type](self, msg, *args, **kwargs)
+        if msg.protocol in self.modules:
+            module_instance = self.modules[msg.protocol]
+
+            if hasattr(module_instance, 'routes'):
+                await module_instance.routes[msg.type](module_instance, self, msg, *args, **kwargs)
+                return
+
+            if hasattr(module_instance, msg.short_type) and \
+                    callable(getattr(module_instance, msg.short_type)):
+
+                await getattr(module_instance, msg.short_type)(
+                    module_instance,
+                    self,
+                    msg,
+                    *args,
+                    **kwargs
+                )
+                return
+
+        raise NoRegisteredRouteException
