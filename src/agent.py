@@ -104,3 +104,9 @@ class Agent:
                 return
 
         raise NoRegisteredRouteException
+
+    async def send(self, msg, to_key, **kwargs):
+        return await self.conductor.send(msg, to_key, **kwargs)
+
+    async def put_message(self, message):
+        return await self.conductor.put_message(message)

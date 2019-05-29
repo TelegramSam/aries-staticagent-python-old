@@ -93,6 +93,9 @@ class Conductor:
             conn = await self.connection_queue.get()
             self.schedule_task(self.message_reader(conn))
 
+    async def put_message(self, message):
+        self.message_queue.put_nowait(message)
+
     async def message_reader(self, conn):
         await conn.recv_lock.acquire()
         async for msg_bytes in conn.recv():
@@ -105,7 +108,7 @@ class Conductor:
                 conn.close() # TODO keeping connection open may be appropriate
                 continue
 
-            self.message_queue.put_nowait(msg)
+            await self.put_message(msg)
 
             if not msg.context['from_key']:
                 # anonymous messages cannot be return routed
