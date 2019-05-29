@@ -1,6 +1,8 @@
 """ Agent """
 import asyncio
+from contextlib import suppress
 
+from compat import create_task
 from conductor import Conductor
 from config import Config
 from errors import NoRegisteredRouteException, UnknownTransportException
@@ -38,14 +40,16 @@ class Agent:
         return agent
 
     async def start(self):
-        conductor_task = asyncio.create_task(self.conductor.start())
-        main_loop = asyncio.create_task(self.loop())
+        conductor_task = create_task(self.conductor.start())
+        main_loop = create_task(self.loop())
         self.main_task = asyncio.gather(conductor_task, main_loop)
         await self.main_task
 
     async def shutdown(self):
         await self.conductor.shutdown()
         self.main_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await self.main_task
 
     async def loop(self):
         if self.config.num_messages == -1:

@@ -3,6 +3,7 @@ from contextlib import suppress
 
 from indy import crypto
 
+from compat import create_task
 from config import Config
 from errors import UnknownTransportException
 from hooks import self_hook_point
@@ -59,17 +60,17 @@ class Conductor:
         return conductor
 
     def schedule_task(self, coro, can_cancel=True):
-        task = asyncio.create_task(coro)
+        task = create_task(coro)
         self.async_tasks.put_nowait((can_cancel, task))
 
     async def start(self):
-        inbound_task = asyncio.create_task(
+        inbound_task = create_task(
             self.inbound_transport.accept(
                 self.connection_queue,
                 **self.transport_options
             )
         )
-        accept_task = asyncio.create_task(self.accept())
+        accept_task = create_task(self.accept())
         await asyncio.gather(inbound_task, accept_task)
 
     async def shutdown(self):
