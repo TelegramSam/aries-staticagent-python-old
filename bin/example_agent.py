@@ -1,9 +1,16 @@
+import sys
+
+if sys.version_info.major < 3 or sys.version_info.minor <= 5:
+    print('This agent implementation is not compatible with python versions 3.5 and lower')
+    sys.exit(1)
+
 import asyncio
 from agent import Agent
 from config import Config
 from conductor import Conductor
 
 if __name__ == '__main__':
+
     loop = asyncio.get_event_loop()
 
     config = Config.from_args_file_defaults()

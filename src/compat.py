@@ -5,7 +5,7 @@ import asyncio
 
 def fail_incompatible():
     """ Fail and print compatibility info """
-    print('This agent does not support Python versions < 3.5')
+    print('This agent supports only python versions 3.6 and greater')
     sys.exit(1)
 
 if not hasattr(sys.version_info, 'major'):
