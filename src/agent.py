@@ -1,6 +1,7 @@
 """ Agent """
 import asyncio
 from contextlib import suppress
+import logging
 
 from compat import create_task
 from config import Config
@@ -18,6 +19,7 @@ class Agent:
 
         self.config = None
         self.wallet_handle = None
+        self.logger = None
         self.conductor = None
 
         self.routes = {}
@@ -35,6 +37,9 @@ class Agent:
     async def from_config(config: Config):
         agent = Agent()
         agent.config = config
+        logging.getLogger().setLevel(logging.ERROR)
+        agent.logger = logging.getLogger(__name__)
+        agent.logger.setLevel(config.log_level)
         agent.wallet_handle = await open_wallet(
             agent.config.wallet,
             agent.config.passphrase,
@@ -55,21 +60,39 @@ class Agent:
         with suppress(asyncio.CancelledError):
             await self.main_task
 
+    async def do_loop(self):
+        msg = await self.conductor.recv()
+        self.logger.debug('Handling Message: %s', msg.serialize())
+
+        try:
+            await self.handle(msg)
+        except Exception as e:
+            self.logger.exception(
+                'Message processing failed\nMessage: %s\nError: %s',
+                msg.serialize(),
+                e
+            )
+
+            if self.config.halt_on_error:
+                raise MessageProcessingFailed(
+                    'Failed while processing message: {}'.format(msg.serialize())
+                ) from e
+        finally:
+            self.logger.debug('Message handled: %s', msg.serialize())
+            await self.conductor.message_handled()
+
     async def loop(self):
         if self.config.num_messages == -1:
             while True:
-                msg = await self.conductor.recv()
-                await self.handle(msg)
-                await self.conductor.message_handled()
+                await self.do_loop()
         else:
             for _ in range(0, self.config.num_messages):
-                msg = await self.conductor.recv()
-                await self.handle(msg)
-                await self.conductor.message_handled()
+                await self.do_loop()
 
     def route(self, msg_type):
         """ Register route decorator. """
         def register_route_dec(func):
+            self.logger.debug('Setting route for agent %s\'s %s to %s', self.config.wallet, msg_type, func)
             self.routes[msg_type] = func
             return func
 

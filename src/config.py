@@ -26,6 +26,7 @@ class Config:
     num_messages: int
     port: int
     log_level: int
+    halt_on_error: bool
 
     def __init__(self):
         self.config: str = None
@@ -37,6 +38,7 @@ class Config:
         num_messages: int = None
         self.port: int = None
         self.log_level: int = None
+        self.halt_on_error: bool = False
 
     @staticmethod
     def default_options():
@@ -48,7 +50,8 @@ class Config:
             'outbound_transport': 'stdout',
             'num_messages': -1,
             'port': None,
-            'log_level': 10
+            'log_level': 50,
+            'halt_on_error': False,
         }
 
     @staticmethod
@@ -75,9 +78,29 @@ class Config:
 
                 setattr(args, self.dest, passphrase)
 
+        class VAction(argparse.Action):
+            def __init__(self, option_strings, dest, nargs=None, const=None,
+                         default=None, type=None, choices=None, required=False,
+                         help=None, metavar=None):
+                super(VAction, self).__init__(option_strings, dest, nargs, const,
+                                              default, type, choices, required,
+                                              help, metavar)
+                self.values = 50
+
+            def __call__(self, parser, args, values, option_string=None):
+                # print('values: {v!r}'.format(v=values))
+                if values is None:
+                    self.values -= 10
+                else:
+                    try:
+                        self.values -= int(values) * 10
+                    except ValueError:
+                        self.values -= (values.count('v') + 1) * 10
+                setattr(args, self.dest, self.values)
+
         parser = argparse.ArgumentParser(
             description='Agent',
-            prog='agent'
+            #prog='agent'
         )
         parser.add_argument(
             '-c',
@@ -142,6 +165,28 @@ class Config:
             metavar='PORT',
             type=int,
             help='Run inbound transport on PORT'
+        )
+        parser.add_argument(
+            '--halt-on-error',
+            dest='halt_on_error',
+            action='store_true',
+            help='Halt when processing fails'
+        )
+        logging_group = parser.add_mutually_exclusive_group()
+        logging_group.add_argument(
+            '-v',
+            nargs='?',
+            action=VAction,
+            dest='log_level',
+            metavar='VERBOSITY',
+            help='Set verbosity; -v VERBOSITY or -v, -vv, -vvv'
+        )
+        logging_group.add_argument(
+            '--log-level',
+            action='store',
+            dest='log_level',
+            metavar='LOGLEVEL',
+            help='Set log level manually; 50 is CRITICAL, 0 is TRACE'
         )
         return parser
 

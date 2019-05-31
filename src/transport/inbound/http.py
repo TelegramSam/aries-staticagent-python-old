@@ -1,6 +1,9 @@
 import asyncio
+import logging
 from aiohttp import web
 from transport.connection import Connection, ConnectionType
+
+logger = logging.getLogger(__name__)
 
 async def accept(connection_queue, **kwargs):
     routes = [
@@ -12,7 +15,7 @@ async def accept(connection_queue, **kwargs):
     runner = web.AppRunner(app)
     await runner.setup()
     server = web.TCPSite(runner=runner, port=kwargs['port'])
-    print('Starting on localhost:{}'.format(kwargs['port']))
+    logger.info('Starting on localhost: %s', kwargs['port'])
     await server.start()
 
 async def post_handle(request):

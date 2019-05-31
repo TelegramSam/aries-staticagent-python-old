@@ -1,10 +1,12 @@
 """ Test return routing. """
 
-import pytest
 import asyncio
 import string
 import random
 from contextlib import suppress
+import logging
+
+import pytest
 
 import indy_sdk_utils as utils
 
@@ -14,6 +16,7 @@ from conductor import Conductor
 from messages.message import Message
 
 random.seed('testing_seed')
+logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def random_string_generator():
@@ -33,6 +36,8 @@ def config_factory(unused_tcp_port_factory, random_string_generator):
         config.outbound_transport = 'http'
         config.port = unused_tcp_port_factory()
         config.num_messages = -1
+        config.log_level = 10
+        config.halt_on_error = True
         return config
 
     return _config_factory
@@ -93,7 +98,7 @@ async def ping_pong_agents(connected_agents):
 
     @bob.route('ping')
     async def respond(agent, msg):
-        print('got ping')
+        logger.info('got ping')
         pong = Message({'@type': 'pong'})
         await agent.conductor.send(
             pong,
@@ -104,14 +109,13 @@ async def ping_pong_agents(connected_agents):
 
     @alice.route('pong')
     async def got_pong(agent, msg):
-        print('got pong')
+        logger.info('got pong')
         agent.ponged.set()
 
     gathered_agent_tasks = asyncio.gather(alice.start(), bob.start())
 
     yield (alice, alice_did, alice_vk, bob, bob_did, bob_vk)
 
-    print('shutting down')
     await alice.shutdown()
     await bob.shutdown()
     gathered_agent_tasks.cancel()
@@ -139,7 +143,7 @@ async def test_http_return_route_no_endpoint(connected_client_server_agents):
 
     @bob.route('ping')
     async def respond(agent, msg):
-        print('got ping, sending pong should queue message')
+        logger.info('got ping, sending pong should queue message')
         pong = Message({'@type': 'pong'})
         await agent.conductor.send(
             pong,
@@ -147,25 +151,25 @@ async def test_http_return_route_no_endpoint(connected_client_server_agents):
             to_did=msg.context['from_did'],
             from_key=msg.context['to_key']
         )
-        print('sent pong to queue, probably')
-        print('queue up a noop')
+        logger.info('sent pong to queue, probably')
+        logger.info('queue up a noop')
         await agent.conductor.send(
             Message({'@type': 'noop'}),
             msg.context['from_key'],
             to_did=msg.context['from_did'],
             from_key=msg.context['to_key']
         )
-        assert agent.conductor.queues[msg.context['from_key']].qsize() == 2
+        assert agent.conductor.pending_queues[msg.context['from_key']].qsize() == 2
 
     @alice.route('noop')
     @bob.route('noop')
     async def noop(agent, msg):
-        print('noop')
+        logger.info('noop')
         pass
 
     @alice.route('pong')
     async def got_pong(agent, msg):
-        print('got pong')
+        logger.info('got pong')
         agent.ponged.set()
 
     gathered_agent_tasks = asyncio.gather(alice.start(), bob.start())
@@ -174,13 +178,15 @@ async def test_http_return_route_no_endpoint(connected_client_server_agents):
     ping = Message({'@type': 'ping'})
     await alice.conductor.send(ping, bob_vk, to_did=bob_did, from_key=alice_vk)
 
-    print('sending noop to pump bob\'s queue')
+    logger.info('sending noop to pump bob\'s queue')
     noop = Message({'@type': 'noop', '~transport': {'return_route': 'all'}})
     await alice.conductor.send(noop, bob_vk, to_did=bob_did, from_key=alice_vk)
 
     await asyncio.wait_for(alice.ponged.wait(), 5)
 
+    logger.info('alice shutdown')
     await alice.shutdown()
+    logger.info('bob shutdown')
     await bob.shutdown()
     gathered_agent_tasks.cancel()
     with suppress(asyncio.CancelledError):

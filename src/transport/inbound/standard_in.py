@@ -1,6 +1,9 @@
 import asyncio
 import sys
+import logging
 from transport.connection import Connection, ConnectionType
+
+logger = logging.getLogger(__name__)
 
 class StdConnection(Connection):
     def __init__(self):
@@ -20,5 +23,5 @@ class StdConnection(Connection):
                 yield msg
 
 async def accept(connection_queue):
-    print("Accepting on stdin")
+    logger.info("Accepting on stdin")
     await connection_queue.put(StdConnection())

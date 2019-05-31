@@ -1,6 +1,9 @@
 import asyncio
 import sys
+import logging
 from transport.connection import Connection, ConnectionType
+
+logger = logging.getLogger(__name__)
 
 class StdOutConnection(Connection):
     def __init__(self):

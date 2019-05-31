@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import suppress
+import logging
 
 from indy import crypto
 
@@ -18,6 +19,7 @@ import transport.outbound.http as HttpOut
 class Conductor:
     hooks = {}
     def __init__(self):
+        self.logger = None
         self.wallet_handle = None
         self.inbound_transport = None
         self.outbound_transport = None
@@ -48,6 +50,8 @@ class Conductor:
         conductor = Conductor()
         conductor.wallet_handle = wallet_handle
         conductor.transport_options = config.transport_options()
+        conductor.logger = logging.getLogger(__name__)
+        conductor.logger.setLevel(config.log_level)
 
         try:
             conductor.inbound_transport = \
@@ -74,7 +78,10 @@ class Conductor:
         await asyncio.gather(inbound_task, accept_task)
 
     async def shutdown(self):
-        await self.message_queue.join()
+        try:
+            await asyncio.wait_for(self.message_queue.join(), 5)
+        except asyncio.TimeoutError:
+            self.logger.warning('Could not join queue, cancelling processors.')
 
         for _, conn in self.open_connections.items():
             conn.close()

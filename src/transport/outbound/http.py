@@ -1,5 +1,8 @@
 import aiohttp
-from transport.connection import Connection, ConnectionType, ConnectionImpossible
+import logging
+from transport.connection import Connection, ConnectionType, CannotOpenConnection
+
+logger = logging.getLogger(__name__)
 
 class HTTPOutConnection(Connection):
     def __init__(self, endpoint):

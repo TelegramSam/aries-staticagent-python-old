@@ -1,6 +1,7 @@
 """ Wrappers around Indy-SDK functions to overcome shortcomings in the SDK.
 """
 import json
+import logging
 from messages.message import Message
 from indy import wallet, did, non_secrets, error, crypto
 
@@ -72,15 +73,15 @@ async def unpack(wallet_handle, message_bytes):
 async def open_wallet(wallet_name, passphrase, ephemeral=False):
     """ Create if not already exists and open wallet.
     """
-
+    logger = logging.getLogger(__name__)
     wallet_config = json.dumps({"id": wallet_name})
     wallet_credentials = json.dumps({"key": passphrase})
 
     # Handle ephemeral wallets
     if ephemeral:
         try:
-            print("Removing ephemeral wallet.")
             await wallet.delete_wallet(wallet_config, wallet_credentials)
+            logger.debug('Removed ephemeral wallet: %s', wallet_name)
         except error.IndyError as e:
             if e.error_code is error.ErrorCode.WalletNotFoundError:
                 pass  # This is ok, and expected.
