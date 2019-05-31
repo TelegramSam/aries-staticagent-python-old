@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class StdConnection(Connection):
     def __init__(self):
-        super().__init__(ConnectionType.RECV)
+        super().__init__(ConnectionType.DUPLEX)
         self.loop = asyncio.get_running_loop()
 
     async def recv(self):
@@ -21,6 +21,9 @@ class StdConnection(Connection):
             if msg:
                 self.close()
                 yield msg
+
+    async def send(self, msg):
+        print(msg)
 
 async def accept(connection_queue):
     logger.info("Accepting on stdin")
