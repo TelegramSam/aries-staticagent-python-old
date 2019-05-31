@@ -6,7 +6,7 @@ class UnsupportedMethodException(Exception):
     """ When Connection type does not support a given method.
     """
 
-class ConnectionImpossible(Exception):
+class CannotOpenConnection(Exception):
     """ When a connection cannot be opened for the given relationship metadata.
     """
 

@@ -85,7 +85,7 @@ class Config:
             dest='config',
             metavar='FILE',
             type=str,
-            help='Load configuration from FILE.'
+            help='Load configuration from FILE'
         )
         parser.add_argument(
             '-i',
@@ -93,7 +93,7 @@ class Config:
             dest='inbound_transport',
             metavar='INBOUND_TRANSPORT',
             type=str,
-            help='Set the inbound transport type.'
+            help='Set the inbound transport type'
         )
         parser.add_argument(
             '-o',
@@ -101,7 +101,7 @@ class Config:
             dest='outbound_transport',
             metavar='OUTBOUND_TRANSPORT',
             type=str,
-            help='Set the outbound transport type.'
+            help='Set the outbound transport type'
         )
         parser.add_argument(
             '-w',
@@ -119,7 +119,7 @@ class Config:
             action=PasswordPromptAction,
             metavar='PASS',
             type=str,
-            help='Wallet passphrase (Prompted at execution)',
+            help='Wallet passphrase; Prompted at execution if PASS is ommitted',
             required=True
         )
         parser.add_argument(

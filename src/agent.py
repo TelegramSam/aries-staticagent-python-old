@@ -4,7 +4,7 @@ from contextlib import suppress
 
 from compat import create_task
 from config import Config
-from errors import NoRegisteredRouteException
+from errors import NoRegisteredRouteException, MessageProcessingFailed
 from hooks import self_hook_point, hook
 from indy_sdk_utils import open_wallet
 
@@ -46,6 +46,7 @@ class Agent:
         conductor_task = create_task(self.conductor.start())
         main_loop = create_task(self.loop())
         self.main_task = asyncio.gather(conductor_task, main_loop)
+
         await self.main_task
 
     async def shutdown(self):
@@ -70,6 +71,7 @@ class Agent:
         """ Register route decorator. """
         def register_route_dec(func):
             self.routes[msg_type] = func
+            return func
 
         return register_route_dec
 
@@ -91,6 +93,8 @@ class Agent:
                 await module_instance.routes[msg.type](module_instance, self, msg, *args, **kwargs)
                 return
 
+            # If no routes defined in module, attempt to route based on method matching
+            # the message type name
             if hasattr(module_instance, msg.short_type) and \
                     callable(getattr(module_instance, msg.short_type)):
 

@@ -23,6 +23,6 @@ class HTTPOutConnection(Connection):
 
 async def open(**metadata):
     if 'their_endpoint' not in metadata:
-        raise ConnectionImpossible()
+        raise CannotOpenConnection()
 
     return HTTPOutConnection(metadata['their_endpoint'])

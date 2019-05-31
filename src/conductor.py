@@ -9,7 +9,7 @@ from errors import UnknownTransportException
 from hooks import self_hook_point
 from messages.message import Message
 import indy_sdk_utils as utils
-from transport.connection import ConnectionImpossible
+from transport.connection import CannotOpenConnection
 import transport.inbound.standard_in as StdIn
 import transport.outbound.standard_out as StdOut
 import transport.inbound.http as HttpIn
@@ -24,7 +24,7 @@ class Conductor:
         self.transport_options = {}
         self.connection_queue = asyncio.Queue()
         self.open_connections = {}
-        self.queues = {}
+        self.pending_queues = {}
         self.message_queue = asyncio.Queue()
         self.hooks = Conductor.hooks.copy()
         self.async_tasks = asyncio.Queue()
@@ -121,6 +121,7 @@ class Conductor:
             if 'pending_message_count' in msg['~transport'] \
                     and msg['~transport']['pending_message_count']:
 
+                # TODO Should only expect remote queue if outbound connection.
                 self.schedule_task(
                     self.pump_remote_queue(
                         msg.context['from_key'],
@@ -145,8 +146,8 @@ class Conductor:
             if return_route == 'all':
                 self.open_connections[msg.context['from_key']] = conn
                 self.schedule_task(self.connection_cleanup(conn, msg.context['from_key']), False)
-                if conn_id in self.queues and self.queues[conn_id].qsize():
-                    self.schedule_task(self.pump_queue(conn, self.queues[conn_id]), False)
+                if conn_id in self.pending_queues:
+                    self.schedule_task(self.send_pending(conn, self.pending_queues[conn_id]), False)
 
             elif return_route == 'none' and conn_id in self.open_connections:
                 del self.open_connections[conn_id]
@@ -175,9 +176,9 @@ class Conductor:
         return await utils.unpack(self.wallet_handle, message)
 
     async def send(self, msg, to_key, **kwargs):
-        from_key = None if 'from_key' not in kwargs else kwargs['from_key']
-        to_did = None if 'to_did' not in kwargs else kwargs['to_did']
-        meta = None if 'meta' not in kwargs else kwargs['meta']
+        from_key = kwargs.get('from_key', None) #default = None
+        to_did = kwargs.get('to_did', None)
+        meta = kwargs.get('meta', None)
 
         if meta == None:
             if not to_did:
@@ -188,10 +189,10 @@ class Conductor:
         if to_key not in self.open_connections or self.open_connections[to_key].closed():
             try:
                 conn = await self.outbound_transport.open(**meta)
-            except ConnectionImpossible:
-                if to_key not in self.queues:
-                    self.queues[to_key] = asyncio.Queue()
-                self.queues[to_key].put_nowait((msg, to_key, from_key))
+            except CannotOpenConnection:
+                if to_key not in self.pending_queues:
+                    self.pending_queues[to_key] = asyncio.Queue()
+                self.pending_queues[to_key].put_nowait((msg, to_key, from_key))
                 return
         else:
             conn = self.open_connections[to_key]
@@ -208,7 +209,7 @@ class Conductor:
         if not conn.closed() and conn.can_recv() and not conn.recv_lock.locked():
             self.schedule_task(self.message_reader(conn))
 
-    async def pump_queue(self, conn, queue):
+    async def send_pending(self, conn, queue):
         while conn.can_send() and not queue.empty():
             msg, to_key, from_key = queue.get_nowait()
 
