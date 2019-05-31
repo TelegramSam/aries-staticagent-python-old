@@ -1,6 +1,7 @@
 """ Agent """
 import asyncio
 from contextlib import suppress
+import traceback
 import logging
 
 from compat import create_task
@@ -19,7 +20,7 @@ class Agent:
 
         self.config = None
         self.wallet_handle = None
-        self.logger = None
+        self.logger = logging.getLogger(__name__)
         self.conductor = None
 
         self.routes = {}
@@ -38,7 +39,6 @@ class Agent:
         agent = Agent()
         agent.config = config
         logging.getLogger().setLevel(logging.ERROR)
-        agent.logger = logging.getLogger(__name__)
         agent.logger.setLevel(config.log_level)
         agent.wallet_handle = await open_wallet(
             agent.config.wallet,
@@ -92,7 +92,7 @@ class Agent:
     def route(self, msg_type):
         """ Register route decorator. """
         def register_route_dec(func):
-            self.logger.debug('Setting route for agent %s\'s %s to %s', self.config.wallet, msg_type, func)
+            self.logger.debug('Setting route for %s to %s', msg_type, func)
             self.routes[msg_type] = func
             return func
 
