@@ -151,7 +151,7 @@ class Conductor:
             conn_id = msg.context['from_key']
 
             if return_route == 'all':
-                self.open_connections[msg.context['from_key']] = conn
+                self.open_connections[conn_id] = conn
                 self.schedule_task(self.connection_cleanup(conn, msg.context['from_key']), False)
                 if conn_id in self.pending_queues:
                     self.schedule_task(self.send_pending(conn, self.pending_queues[conn_id]), False)
@@ -217,6 +217,7 @@ class Conductor:
             self.schedule_task(self.message_reader(conn))
 
     async def send_pending(self, conn, queue):
+        # TODO pending queue and processing of another message calls send, what happens first?
         while conn.can_send() and not queue.empty():
             msg, to_key, from_key = queue.get_nowait()
 
