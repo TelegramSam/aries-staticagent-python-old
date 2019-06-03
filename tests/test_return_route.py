@@ -14,9 +14,12 @@ from agent import Agent
 from config import Config
 from conductor import Conductor
 from messages.message import Message
+from messages.noop import Noop
 
 random.seed('testing_seed')
 logger = logging.getLogger(__name__)
+ping_type = 'did:test:12345;spec/ping/1.0/ping'
+pong_type = 'did:test:12345;spec/ping/1.0/pong'
 
 @pytest.fixture
 def random_string_generator():
@@ -96,10 +99,10 @@ async def ping_pong_agents(connected_agents):
 
     alice.ponged = asyncio.Event()
 
-    @bob.route('ping')
+    @bob.route(ping_type)
     async def respond(agent, msg):
         logger.info('got ping')
-        pong = Message({'@type': 'pong'})
+        pong = Message({'@type': pong_type})
         await agent.conductor.send(
             pong,
             msg.context['from_key'],
@@ -107,7 +110,7 @@ async def ping_pong_agents(connected_agents):
             from_key=msg.context['to_key']
         )
 
-    @alice.route('pong')
+    @alice.route(pong_type)
     async def got_pong(agent, msg):
         logger.info('got pong')
         agent.ponged.set()
@@ -124,8 +127,8 @@ async def ping_pong_agents(connected_agents):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('message', [
-    {'@type': 'ping', '~transport': {'return_route': 'all'}},
-    {'@type': 'ping'}
+    {'@type': ping_type, '~transport': {'return_route': 'all'}},
+    {'@type': ping_type}
 ])
 async def test_http_return_route(ping_pong_agents, message):
     (alice, alice_did, alice_vk, bob, bob_did, bob_vk) = ping_pong_agents
@@ -141,10 +144,10 @@ async def test_http_return_route_no_endpoint(connected_client_server_agents):
 
     alice.ponged = asyncio.Event()
 
-    @bob.route('ping')
+    @bob.route(ping_type)
     async def respond(agent, msg):
         logger.info('got ping, sending pong should queue message')
-        pong = Message({'@type': 'pong'})
+        pong = Message({'@type': pong_type})
         await agent.conductor.send(
             pong,
             msg.context['from_key'],
@@ -154,20 +157,20 @@ async def test_http_return_route_no_endpoint(connected_client_server_agents):
         logger.info('sent pong to queue, probably')
         logger.info('queue up a noop')
         await agent.conductor.send(
-            Message({'@type': 'noop'}),
+            Message({'@type': Noop.TYPE}),
             msg.context['from_key'],
             to_did=msg.context['from_did'],
             from_key=msg.context['to_key']
         )
         assert agent.conductor.pending_queues[msg.context['from_key']].qsize() == 2
 
-    @alice.route('noop')
-    @bob.route('noop')
+    @alice.route(Noop.TYPE)
+    @bob.route(Noop.TYPE)
     async def noop(agent, msg):
-        logger.info('noop')
+        logger.info(Noop.TYPE)
         pass
 
-    @alice.route('pong')
+    @alice.route(pong_type)
     async def got_pong(agent, msg):
         logger.info('got pong')
         agent.ponged.set()
@@ -175,11 +178,11 @@ async def test_http_return_route_no_endpoint(connected_client_server_agents):
     gathered_agent_tasks = asyncio.gather(alice.start(), bob.start())
 
     # No return route, can't respond directly
-    ping = Message({'@type': 'ping'})
+    ping = Message({'@type': ping_type})
     await alice.conductor.send(ping, bob_vk, to_did=bob_did, from_key=alice_vk)
 
     logger.info('sending noop to pump bob\'s queue')
-    noop = Message({'@type': 'noop', '~transport': {'return_route': 'all'}})
+    noop = Noop(return_route=True)
     await alice.conductor.send(noop, bob_vk, to_did=bob_did, from_key=alice_vk)
 
     await asyncio.wait_for(alice.ponged.wait(), 5)

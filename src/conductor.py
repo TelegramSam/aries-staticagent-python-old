@@ -9,6 +9,7 @@ from config import Config
 from errors import UnknownTransportException
 from hooks import self_hook_point
 from messages.message import Message
+from messages.noop import Noop
 import indy_sdk_utils as utils
 from transport.connection import CannotOpenConnection
 import transport.inbound.standard_in as StdIn
@@ -236,6 +237,5 @@ class Conductor:
             await conn.send(wire_msg)
 
     async def pump_remote_queue(self, to_key, to_did, from_key):
-        #TODO define noop somewhere else
-        noop = Message({'@type': 'noop', '~transport': {'return_route': 'all'}})
+        noop = Noop(return_route=True)
         await self.send(noop, to_key, to_did=to_did, from_key=from_key)
