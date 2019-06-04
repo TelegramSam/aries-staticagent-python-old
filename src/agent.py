@@ -8,9 +8,11 @@ from sortedcontainers import SortedSet
 
 from compat import create_task
 from config import Config
-from errors import NoRegisteredRouteException, MessageProcessingFailed
 from hooks import self_hook_point, hook
 from indy_sdk_utils import open_wallet
+
+class NoRegisteredRouteException(Exception): pass
+class MessageProcessingFailed(Exception): pass
 
 class Agent:
     """ Agent """

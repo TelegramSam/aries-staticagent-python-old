@@ -6,7 +6,6 @@ from indy import crypto
 
 from compat import create_task
 from config import Config
-from errors import UnknownTransportException
 from hooks import self_hook_point
 from messages.message import Message
 from messages.noop import Noop
@@ -16,6 +15,8 @@ import transport.inbound.standard_in as StdIn
 import transport.outbound.standard_out as StdOut
 import transport.inbound.http as HttpIn
 import transport.outbound.http as HttpOut
+
+class UnknownTransportException(Exception): pass
 
 class Conductor:
     hooks = {}

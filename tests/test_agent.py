@@ -3,8 +3,7 @@ import asyncio
 from collections import namedtuple
 import pytest
 
-from agent import Agent
-from errors import NoRegisteredRouteException
+from agent import Agent, NoRegisteredRouteException
 from module import module
 from messages.message import Message, Semver
 
