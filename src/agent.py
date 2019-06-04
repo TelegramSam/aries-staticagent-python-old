@@ -113,6 +113,7 @@ class Agent:
 
         self.module_versions[qualified_protocol].add(version_info)
 
+    @self_hook_point
     def get_closest_module_for_msg(self, msg):
         if not msg.qualified_protocol in self.module_versions:
             return None
@@ -127,7 +128,7 @@ class Agent:
         return None
 
     # Hooks discovered at runtime
-    @self_hook_point()
+    @self_hook_point
     async def handle(self, msg, *args, **kwargs):
         """ Route message """
         if msg.type in self.routes:

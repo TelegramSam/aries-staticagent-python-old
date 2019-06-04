@@ -178,7 +178,7 @@ class Conductor:
     async def message_handled(self):
         self.message_queue.task_done()
 
-    @self_hook_point()
+    @self_hook_point
     async def unpack(self, message: bytes):
         """ Perform processing to convert bytes off the wire to Message. """
         return await utils.unpack(self.wallet_handle, message)

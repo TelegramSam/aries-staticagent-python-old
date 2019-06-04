@@ -52,7 +52,7 @@ async def test_object_hooks():
             assert ret2 == 2
             return 3
 
-        @self_hook_point()
+        @self_hook_point
         async def testing(self, a, b):
             assert a == 'one'
             assert b == 'two'

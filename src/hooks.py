@@ -1,9 +1,10 @@
 import functools
+import asyncio
 
 class NoHooksFoundException(Exception):
     pass
 
-async def run_hooks(hooks, hook_name, func, *args, **kwargs):
+async def run_async_hooks(hooks, hook_name, func, *args, **kwargs):
     """ Run hooks for func with hook_name.
         Parameters of pre hooks are the same as the called function.
         Parameters of post hooks are the same as the called function with the
@@ -22,8 +23,21 @@ async def run_hooks(hooks, hook_name, func, *args, **kwargs):
 
     return return_value
 
+def run_hooks(hooks, hook_name, func, *args, **kwargs):
+    if 'pre_' + hook_name in hooks:
+        for hook_fn in hooks['pre_' + hook_name]:
+            hook_fn(*args, **kwargs)
 
-def self_hook_point():
+    return_value = func(*args, **kwargs)
+
+    if 'post_' + hook_name in hooks:
+        for hook_fn in hooks['post_' + hook_name]:
+            return_value = hook_fn(*args, return_value, **kwargs)
+
+    return return_value
+
+
+def self_hook_point(func):
     """ Define a function with pre and post hooks inside of a class.
         This will pull `hooks` from the first argument (self).
 
@@ -32,30 +46,45 @@ def self_hook_point():
         Hooks can be defined statically or at runtime. See
         tests/test_hooks::test_object_hooks for an example.
     """
-    def self_hook_point_dec(func):
-        hook_name = func.__name__
+    hook_name = func.__name__
 
+    if asyncio.iscoroutinefunction(func):
         @functools.wraps(func)
-        async def wrapped(*args, **kwargs):
+        async def async_wrapped(*args, **kwargs):
             if not args or not hasattr(args[0], 'hooks'):
                 raise NoHooksFoundException
 
             hooks = args[0].hooks
-            return await run_hooks(hooks, hook_name, func, *args, **kwargs)
+            return await run_async_hooks(hooks, hook_name, func, *args, **kwargs)
 
-        return wrapped
+        return async_wrapped
 
-    return self_hook_point_dec
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        if not args or not hasattr(args[0], 'hooks'):
+            raise NoHooksFoundException
+
+        hooks = args[0].hooks
+        return run_hooks(hooks, hook_name, func, *args, **kwargs)
+
+    return wrapped
 
 def hook_point(hooks):
     """ Define a function with pre and post hooks given a hooks dictionary. """
     def hook_point_dec(func):
         hook_name = func.__name__
 
+        if asyncio.iscoroutinefunction(func):
+            @functools.wraps(func)
+            async def async_wrapped(*args, **kwargs):
+                return await run_async_hooks(hooks, hook_name, func, *args, **kwargs)
+            return async_wrapped
+
         @functools.wraps(func)
-        async def wrapped(*args, **kwargs):
-            return await run_hooks(hooks, hook_name, func, *args, **kwargs)
+        def wrapped(*args, **kwargs):
+            return run_hooks(hooks, hook_name, func, *args, **kwargs)
         return wrapped
+
     return hook_point_dec
 
 
