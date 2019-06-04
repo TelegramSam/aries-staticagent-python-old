@@ -5,7 +5,7 @@ import pytest
 
 from agent import Agent
 from errors import NoRegisteredRouteException
-from module import Module
+from module import module
 from messages.message import Message, Semver
 
 MockMessage = namedtuple('MockMessage', ['type', 'test'])
@@ -34,14 +34,13 @@ async def test_module_routing_explicit_def():
     agent = Agent()
     called_event = asyncio.Event()
 
-    class TestModule(metaclass=Module):
-        routes = {}
+    @module
+    class TestModule():
         DOC_URI = ''
         PROTOCOL = 'test_protocol'
         VERSION = '1.0'
 
-        def __init__(self):
-            self.routes = TestModule.routes.copy()
+        routes = {}
 
         @route_def(routes, 'test_protocol/1.0/testing_type')
         async def route_gets_called(self, agent, msg, **kwargs):
@@ -61,7 +60,8 @@ async def test_module_routing_simple():
     agent = Agent()
     called_event = asyncio.Event()
 
-    class TestModule(metaclass=Module):
+    @module
+    class TestModule():
         DOC_URI = ''
         PROTOCOL = 'test_protocol'
         VERSION = '1.0'
@@ -84,7 +84,8 @@ async def test_module_routing_many():
     agent.called_module = None
     routed_event = asyncio.Event()
 
-    class TestModule1(metaclass=Module):
+    @module
+    class TestModule1():
         DOC_URI = ''
         PROTOCOL = 'test_protocol'
         VERSION = '1.0'
@@ -93,7 +94,8 @@ async def test_module_routing_many():
             agent.called_module = 1
             kwargs['event'].set()
 
-    class TestModule2(metaclass=Module):
+    @module
+    class TestModule2():
         DOC_URI = ''
         PROTOCOL = 'test_protocol'
         VERSION = '2.0'
@@ -127,7 +129,8 @@ async def test_module_routing_no_matching_version():
     agent = Agent()
     called_event = asyncio.Event()
 
-    class TestModule(metaclass=Module):
+    @module
+    class TestModule():
         DOC_URI = ''
         PROTOCOL = 'test_protocol'
         VERSION = '1.0'
@@ -148,7 +151,8 @@ async def test_module_routing_minor_version_different():
     agent = Agent()
     called_event = asyncio.Event()
 
-    class TestModule(metaclass=Module):
+    @module
+    class TestModule():
         DOC_URI = ''
         PROTOCOL = 'test_protocol'
         VERSION = '1.4'

@@ -4,6 +4,8 @@ from functools import partial
 
 from semver import VersionInfo, parse
 
+class InvalidModule(Exception): pass
+
 def route_def(routes, msg_type):
     """ Route definition decorator """
     def _route_def(func):
@@ -76,3 +78,19 @@ class Module(type):
     @property
     def qualified_protocol(cls):
         return cls.DOC_URI + cls.PROTOCOL
+
+def module(cls):
+    if not hasattr(cls, 'DOC_URI'):
+        raise InvalidModule
+    if not hasattr(cls, 'PROTOCOL'):
+        raise InvalidModule
+    if not hasattr(cls, 'VERSION'):
+        raise InvalidModule
+
+    class WrappedModule(cls, metaclass=Module):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            if hasattr(cls, 'routes'):
+                self.routes = cls.routes.copy()
+
+    return WrappedModule
