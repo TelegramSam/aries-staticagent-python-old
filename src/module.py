@@ -72,25 +72,22 @@ class Module(type):
         return cls.DOC_URI
 
     @property
-    def protocol_identifer_uri(cls):
-        return cls.DOC_URI + cls.PROTOCOL + '/' + cls.normalized_version
-
-    @property
     def qualified_protocol(cls):
         return cls.DOC_URI + cls.PROTOCOL
 
+    @property
+    def protocol_identifer_uri(cls):
+        return cls.qualified_protocol + '/' + cls.normalized_version
+
 def module(cls):
     if not hasattr(cls, 'DOC_URI'):
-        raise InvalidModule
+        raise InvalidModule('DOC_URI missing from module definition')
     if not hasattr(cls, 'PROTOCOL'):
-        raise InvalidModule
+        raise InvalidModule("PROTOCOL missing from module definition")
     if not hasattr(cls, 'VERSION'):
-        raise InvalidModule
+        raise InvalidModule('VERSION missing from module definition')
 
     class WrappedModule(cls, metaclass=Module):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            if hasattr(cls, 'routes'):
-                self.routes = cls.routes.copy()
+        pass
 
     return WrappedModule
