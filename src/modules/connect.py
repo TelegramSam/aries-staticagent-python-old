@@ -1,6 +1,10 @@
-from module import Module
+from module import module
 
-class Connect(Module):
+@module
+class Connect:
+    DOC_URI = 'did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/'
+    PROTOCOL = 'connection'
+    VERSION = '1.0'
 
     async def invite(self, agent, msg, *args, **kwargs):
         pass
