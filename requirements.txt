@@ -2,3 +2,5 @@ toml
 python3-indy
 pytest
 aiohttp
+sortedcontainers
+semver

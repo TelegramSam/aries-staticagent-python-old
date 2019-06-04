@@ -4,6 +4,8 @@ from contextlib import suppress
 import traceback
 import logging
 
+from sortedcontainers import SortedSet
+
 from compat import create_task
 from config import Config
 from errors import NoRegisteredRouteException, MessageProcessingFailed
@@ -24,7 +26,8 @@ class Agent:
         self.conductor = None
 
         self.routes = {}
-        self.modules = {}
+        self.modules = {} # Protocol identifier URI to module
+        self.module_versions = {} # Doc URI + Protocol to list of Module Versions
 
         self.main_task = None
 
@@ -99,7 +102,29 @@ class Agent:
         return register_route_dec
 
     def route_module(self, module_instance):
-        self.modules[module_instance.PROTOCOL] = module_instance
+        # Register module
+        self.modules[type(module_instance).protocol_identifer_uri] = module_instance
+
+        # Store version selection info
+        version_info = type(module_instance).version_info
+        qualified_protocol = type(module_instance).qualified_protocol
+        if not qualified_protocol in self.module_versions:
+            self.module_versions[qualified_protocol] = SortedSet()
+
+        self.module_versions[qualified_protocol].add(version_info)
+
+    def get_closest_module_for_msg(self, msg):
+        if not msg.qualified_protocol in self.module_versions:
+            return None
+
+        registered_version_set = self.module_versions[msg.qualified_protocol]
+        for version in reversed(registered_version_set):
+            if msg.version_info.major == version.major:
+                return self.modules[msg.qualified_protocol + '/' + str(version)]
+            if msg.version_info.major > version.major:
+                break
+
+        return None
 
     # Hooks discovered at runtime
     @self_hook_point()
@@ -109,8 +134,8 @@ class Agent:
             await self.routes[msg.type](self, msg, *args, **kwargs)
             return
 
-        if msg.protocol in self.modules:
-            module_instance = self.modules[msg.protocol]
+        module_instance = self.get_closest_module_for_msg(msg)
+        if module_instance:
 
             if hasattr(module_instance, 'routes'):
                 await module_instance.routes[msg.type](module_instance, self, msg, *args, **kwargs)
@@ -122,8 +147,7 @@ class Agent:
                     callable(getattr(module_instance, msg.short_type)):
 
                 await getattr(module_instance, msg.short_type)(
-                    module_instance,
-                    self,
+                    self, #agent
                     msg,
                     *args,
                     **kwargs

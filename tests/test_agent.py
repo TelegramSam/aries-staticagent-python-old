@@ -4,7 +4,9 @@ from collections import namedtuple
 import pytest
 
 from agent import Agent
-from messages.message import Message
+from errors import NoRegisteredRouteException
+from module import Module
+from messages.message import Message, Semver
 
 MockMessage = namedtuple('MockMessage', ['type', 'test'])
 
@@ -32,9 +34,11 @@ async def test_module_routing_explicit_def():
     agent = Agent()
     called_event = asyncio.Event()
 
-    class TestModule:
+    class TestModule(metaclass=Module):
         routes = {}
+        DOC_URI = ''
         PROTOCOL = 'test_protocol'
+        VERSION = '1.0'
 
         def __init__(self):
             self.routes = TestModule.routes.copy()
@@ -57,8 +61,97 @@ async def test_module_routing_simple():
     agent = Agent()
     called_event = asyncio.Event()
 
-    class TestModule:
+    class TestModule(metaclass=Module):
+        DOC_URI = ''
         PROTOCOL = 'test_protocol'
+        VERSION = '1.0'
+
+        async def testing_type(self, agent, msg, *args, **kwargs):
+            kwargs['event'].set()
+
+    mod = TestModule()
+    agent.route_module(mod)
+
+    test_msg = Message({'@type': 'test_protocol/1.0/testing_type', 'test': 'test'})
+    await agent.handle(test_msg, event=called_event)
+
+    assert called_event.is_set()
+
+@pytest.mark.asyncio
+async def test_module_routing_many():
+    """ Test that routing to a module works. """
+    agent = Agent()
+    agent.called_module = None
+    routed_event = asyncio.Event()
+
+    class TestModule1(metaclass=Module):
+        DOC_URI = ''
+        PROTOCOL = 'test_protocol'
+        VERSION = '1.0'
+
+        async def testing_type(self, agent, msg, *args, **kwargs):
+            agent.called_module = 1
+            kwargs['event'].set()
+
+    class TestModule2(metaclass=Module):
+        DOC_URI = ''
+        PROTOCOL = 'test_protocol'
+        VERSION = '2.0'
+
+        async def testing_type(self, agent, msg, *args, **kwargs):
+            agent.called_module = 2
+            kwargs['event'].set()
+
+    agent.route_module(TestModule1())
+    agent.route_module(TestModule2())
+
+    test_msg = Message({'@type': 'test_protocol/1.0/testing_type', 'test': 'test'})
+    await agent.handle(test_msg, event=routed_event)
+    await routed_event.wait()
+
+    assert routed_event.is_set()
+    assert agent.called_module == 1
+
+    routed_event.clear()
+
+    test_msg = Message({'@type': 'test_protocol/2.0/testing_type', 'test': 'test'})
+    await agent.handle(test_msg, event=routed_event)
+    await routed_event.wait()
+
+    assert routed_event.is_set()
+    assert agent.called_module == 2
+
+@pytest.mark.asyncio
+async def test_module_routing_no_matching_version():
+    """ Test that routing to a module works. """
+    agent = Agent()
+    called_event = asyncio.Event()
+
+    class TestModule(metaclass=Module):
+        DOC_URI = ''
+        PROTOCOL = 'test_protocol'
+        VERSION = '1.0'
+
+        async def testing_type(self, agent, msg, *args, **kwargs):
+            kwargs['event'].set()
+
+    mod = TestModule()
+    agent.route_module(mod)
+
+    test_msg = Message({'@type': 'test_protocol/3.0/testing_type', 'test': 'test'})
+    with pytest.raises(NoRegisteredRouteException):
+        await agent.handle(test_msg, event=called_event)
+
+@pytest.mark.asyncio
+async def test_module_routing_minor_version_different():
+    """ Test that routing to a module works. """
+    agent = Agent()
+    called_event = asyncio.Event()
+
+    class TestModule(metaclass=Module):
+        DOC_URI = ''
+        PROTOCOL = 'test_protocol'
+        VERSION = '1.4'
 
         async def testing_type(self, agent, msg, *args, **kwargs):
             kwargs['event'].set()
