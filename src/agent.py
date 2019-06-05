@@ -71,17 +71,17 @@ class Agent:
 
         try:
             await self.handle(msg)
-        except Exception as e:
+        except Exception as err:
             self.logger.exception(
                 'Message processing failed\nMessage: %s\nError: %s',
                 msg.serialize(),
-                e
+                err
             )
 
             if self.config.halt_on_error:
                 raise MessageProcessingFailed(
                     'Failed while processing message: {}'.format(msg.serialize())
-                ) from e
+                ) from err
         finally:
             self.logger.debug('Message handled: %s', msg.serialize())
             await self.conductor.message_handled()
@@ -129,7 +129,6 @@ class Agent:
 
         return None
 
-    # Hooks discovered at runtime
     @self_hook_point
     async def handle(self, msg, *args, **kwargs):
         """ Route message """

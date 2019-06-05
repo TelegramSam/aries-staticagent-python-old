@@ -54,41 +54,42 @@ def agent_factory(config_factory):
         return agent
     return _agent_factory
 
-@pytest.fixture
-def connect_agents():
-    async def _connect_agents(a, b, **kwargs):
-        a_did, a_vk = await utils.create_and_store_my_did(
-            a.wallet_handle,
-            seed = '0000000000000000000000000000000a'
+async def connect_agents(alice, bob, **kwargs):
+    # DID and Key creation
+    a_did, a_vk = await utils.create_and_store_my_did(
+        alice.wallet_handle,
+        seed='0000000000000000000000000000000a'
+    )
+    b_did, b_vk = await utils.create_and_store_my_did(
+        bob.wallet_handle,
+        seed='0000000000000000000000000000000b'
+    )
+
+    # Store metadata
+    await utils.store_their_did(alice.wallet_handle, b_did, b_vk)
+    await utils.set_did_metadata( # Set Bob's meta in Alice's wallet
+        alice.wallet_handle,
+        b_did,
+        {'their_endpoint': 'http://localhost:{}/indy'.format(bob.config.port)}
+    )
+
+    await utils.store_their_did(bob.wallet_handle, a_did, a_vk)
+    if 'client_server' not in kwargs:
+        await utils.set_did_metadata( # Set Alice's meta in Bob's wallet
+            bob.wallet_handle,
+            a_did,
+            {'their_endpoint': 'http://localhost:{}/indy'.format(alice.config.port)}
         )
-        b_did, b_vk = await utils.create_and_store_my_did(
-            b.wallet_handle,
-            seed = '0000000000000000000000000000000b'
-        )
-        await utils.store_their_did(a.wallet_handle, b_did, b_vk)
-        await utils.set_did_metadata(
-            a.wallet_handle,
-            b_did,
-            {'their_endpoint': 'http://localhost:{}/indy'.format(b.config.port)}
-        )
-        await utils.store_their_did(b.wallet_handle, a_did, a_vk)
-        if 'client_server' not in kwargs:
-            await utils.set_did_metadata(
-                b.wallet_handle,
-                a_did,
-                {'their_endpoint': 'http://localhost:{}/indy'.format(a.config.port)}
-            )
-        return a_did, a_vk, b_did, b_vk
-    return _connect_agents
+    return a_did, a_vk, b_did, b_vk
 
 @pytest.fixture
-async def connected_agents(agent_factory, connect_agents):
+async def connected_agents(agent_factory):
     alice, bob = await agent_factory(), await agent_factory()
     alice_did, alice_vk, bob_did, bob_vk = await connect_agents(alice, bob)
     return (alice, alice_did, alice_vk, bob, bob_did, bob_vk)
 
 @pytest.fixture
-async def connected_client_server_agents(agent_factory, connect_agents):
+async def connected_client_server_agents(agent_factory):
     alice, bob = await agent_factory(), await agent_factory()
     alice_did, alice_vk, bob_did, bob_vk = await connect_agents(alice, bob, client_server=True)
     return (alice, alice_did, alice_vk, bob, bob_did, bob_vk)
@@ -103,7 +104,7 @@ async def ping_pong_agents(connected_agents):
     async def respond(agent, msg):
         logger.info('got ping')
         pong = Message({'@type': pong_type})
-        await agent.conductor.send(
+        await agent.send(
             pong,
             msg.context['from_key'],
             to_did=msg.context['from_did'],
@@ -134,7 +135,7 @@ async def test_http_return_route(ping_pong_agents, message):
     (alice, alice_did, alice_vk, bob, bob_did, bob_vk) = ping_pong_agents
 
     ping = Message(message)
-    await alice.conductor.send(ping, bob_vk, to_did=bob_did, from_key=alice_vk)
+    await alice.send(ping, bob_vk, to_did=bob_did, from_key=alice_vk)
     await asyncio.wait_for(alice.ponged.wait(), 20)
     assert alice.ponged.is_set()
 
@@ -148,7 +149,7 @@ async def test_http_return_route_no_endpoint(connected_client_server_agents):
     async def respond(agent, msg):
         logger.info('got ping, sending pong should queue message')
         pong = Message({'@type': pong_type})
-        await agent.conductor.send(
+        await agent.send(
             pong,
             msg.context['from_key'],
             to_did=msg.context['from_did'],
@@ -156,7 +157,7 @@ async def test_http_return_route_no_endpoint(connected_client_server_agents):
         )
         logger.info('sent pong to queue, probably')
         logger.info('queue up a noop')
-        await agent.conductor.send(
+        await agent.send(
             Message({'@type': Noop.TYPE}),
             msg.context['from_key'],
             to_did=msg.context['from_did'],
@@ -179,11 +180,11 @@ async def test_http_return_route_no_endpoint(connected_client_server_agents):
 
     # No return route, can't respond directly
     ping = Message({'@type': ping_type})
-    await alice.conductor.send(ping, bob_vk, to_did=bob_did, from_key=alice_vk)
+    await alice.send(ping, bob_vk, to_did=bob_did, from_key=alice_vk)
 
     logger.info('sending noop to pump bob\'s queue')
     noop = Noop(return_route=True)
-    await alice.conductor.send(noop, bob_vk, to_did=bob_did, from_key=alice_vk)
+    await alice.send(noop, bob_vk, to_did=bob_did, from_key=alice_vk)
 
     await asyncio.wait_for(alice.ponged.wait(), 5)
 
