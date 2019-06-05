@@ -1,7 +1,6 @@
 """ Agent """
-import asyncio
 from contextlib import suppress
-import traceback
+import asyncio
 import logging
 
 from sortedcontainers import SortedSet
@@ -11,37 +10,40 @@ from config import Config
 from hooks import self_hook_point, hook
 from indy_sdk_utils import open_wallet
 
-class NoRegisteredRouteException(Exception): pass
-class MessageProcessingFailed(Exception): pass
+class NoRegisteredRouteException(Exception):
+    """ Thrown when message has no registered handlers """
+
+class MessageProcessingFailed(Exception):
+    """ Thrown when main message processing loop fails to proccess a message """
 
 class Agent:
     """ Agent """
     # TODO Move hook stuff into Hookable
     hooks = {}
 
+    # Constructors and Set up {{{
+
     def __init__(self):
+        # TODO Move hook stuff into Hookable
         self.hooks = Agent.hooks.copy() # Copy statically configured hooks
 
+        # base fields
         self.config = None
         self.wallet_handle = None
         self.logger = logging.getLogger(__name__)
         self.conductor = None
 
+        # message routing
         self.routes = {}
         self.modules = {} # Protocol identifier URI to module
         self.module_versions = {} # Doc URI + Protocol to list of Module Versions
 
+        # async handling
         self.main_task = None
 
-    def hook(self, hook_name):
-        return hook(self, hook_name)
-
-    def register_hook(self, hook_name, hook_fn):
-        hook(self, hook_name)(hook_fn)
-
-    @staticmethod
-    async def from_config(config: Config):
-        agent = Agent()
+    @classmethod
+    async def from_config(cls, config: Config):
+        agent = cls()
         agent.config = config
         logging.getLogger().setLevel(logging.ERROR)
         agent.logger.setLevel(config.log_level)
@@ -52,9 +54,24 @@ class Agent:
         )
         return agent
 
+    def set_conductor(self, conductor):
+        self.conductor = conductor
+
+    # }}}
+
+    # TODO Move hook stuff into Hookable
+    def hook(self, hook_name):
+        return hook(self, hook_name)
+
+    # TODO Move hook stuff into Hookable
+    def register_hook(self, hook_name, hook_fn):
+        hook(self, hook_name)(hook_fn)
+
+    # Async Handling {{{
+
     async def start(self):
         conductor_task = create_task(self.conductor.start())
-        main_loop = create_task(self.loop())
+        main_loop = create_task(self._loop())
         self.main_task = asyncio.gather(conductor_task, main_loop)
 
         await self.main_task
@@ -65,7 +82,11 @@ class Agent:
         with suppress(asyncio.CancelledError):
             await self.main_task
 
-    async def do_loop(self):
+    # }}}
+
+    # Main Loop {{{
+
+    async def _do_loop(self):
         msg = await self.conductor.recv()
         self.logger.debug('Handling Message: %s', msg.serialize())
 
@@ -86,13 +107,17 @@ class Agent:
             self.logger.debug('Message handled: %s', msg.serialize())
             await self.conductor.message_handled()
 
-    async def loop(self):
+    async def _loop(self):
         if self.config.num_messages == -1:
             while True:
-                await self.do_loop()
+                await self._do_loop()
         else:
             for _ in range(0, self.config.num_messages):
-                await self.do_loop()
+                await self._do_loop()
+
+    # }}}
+
+    # Message Routing {{{
 
     def route(self, msg_type):
         """ Register route decorator. """
@@ -158,8 +183,15 @@ class Agent:
 
         raise NoRegisteredRouteException
 
+    # }}}
+
+
+    # Shortcuts to Conductor {{{
+
     async def send(self, msg, to_key, **kwargs):
         return await self.conductor.send(msg, to_key, **kwargs)
 
     async def put_message(self, message):
         return await self.conductor.put_message(message)
+
+    # }}}

@@ -50,7 +50,7 @@ def agent_factory(config_factory):
     async def _agent_factory():
         config = config_factory()
         agent = await Agent.from_config(config)
-        agent.conductor = Conductor.from_wallet_handle_config(agent.wallet_handle, config)
+        agent.set_conductor(Conductor.from_wallet_handle_config(agent.wallet_handle, config))
         return agent
     return _agent_factory
 

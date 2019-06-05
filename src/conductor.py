@@ -47,9 +47,9 @@ class Conductor:
             'http': HttpOut,
         }[transport_str]
 
-    @staticmethod
-    def from_wallet_handle_config(wallet_handle, config: Config):
-        conductor = Conductor()
+    @classmethod
+    def from_wallet_handle_config(cls, wallet_handle, config: Config):
+        conductor = cls()
         conductor.wallet_handle = wallet_handle
         conductor.transport_options = config.transport_options()
         conductor.logger = logging.getLogger(__name__)

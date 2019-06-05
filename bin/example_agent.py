@@ -16,7 +16,7 @@ if __name__ == '__main__':
     config = Config.from_args_file_defaults()
 
     agent = loop.run_until_complete(Agent.from_config(config))
-    agent.conductor = Conductor.from_wallet_handle_config(agent.wallet_handle, config)
+    agent.set_conductor(Conductor.from_wallet_handle_config(agent.wallet_handle, config))
 
     @agent.route('testing')
     async def testing_handler(agent, msg):
