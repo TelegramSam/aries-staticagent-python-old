@@ -26,7 +26,7 @@ async def post_handle(request):
     try:
         await asyncio.wait_for(conn.wait(), 5)
     except asyncio.TimeoutError:
-        conn.close()
+        await conn.close()
 
     if conn.new_msg:
         return web.Response(body=conn.new_msg)
@@ -45,4 +45,4 @@ class HTTPConnection(Connection):
 
     async def send(self, new_msg):
         self.new_msg = new_msg
-        self.close()
+        await self.close()

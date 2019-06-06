@@ -41,7 +41,7 @@ class Connection:
     def is_duplex(self):
         return self.flags & ConnectionType.DUPLEX
 
-    def close(self):
+    async def close(self):
         self.done.set()
 
     def closed(self):

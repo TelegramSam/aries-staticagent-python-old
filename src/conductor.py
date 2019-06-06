@@ -15,6 +15,7 @@ import transport.inbound.standard_in as StdIn
 import transport.outbound.standard_out as StdOut
 import transport.inbound.http as HttpIn
 import transport.outbound.http as HttpOut
+import transport.inbound.websocket as WebSocketIn
 
 class UnknownTransportException(Exception): pass
 
@@ -37,7 +38,8 @@ class Conductor:
     def in_transport_str_to_mod(transport_str):
         return {
             'stdin': StdIn,
-            'http': HttpIn
+            'http': HttpIn,
+            'ws': WebSocketIn
         }[transport_str]
 
     @staticmethod
@@ -83,10 +85,10 @@ class Conductor:
         try:
             await asyncio.wait_for(self.message_queue.join(), 5)
         except asyncio.TimeoutError:
-            self.logger.warning('Could not join queue, cancelling processors.')
+            self.logger.warning('Could not join queue; cancelling processors.')
 
         for _, conn in self.open_connections.items():
-            conn.close()
+            await conn.close()
 
         while not self.async_tasks.empty():
             can_cancel, task = self.async_tasks.get_nowait()
@@ -99,6 +101,7 @@ class Conductor:
 
     async def accept(self):
         while True:
+            self.logger.debug('Accepted new connection')
             conn = await self.connection_queue.get()
             self.schedule_task(self.message_reader(conn))
 
@@ -110,18 +113,19 @@ class Conductor:
         async for msg_bytes in conn.recv():
             if not msg_bytes:
                 continue
+            self.logger.debug('Received message bytes: %s', msg_bytes)
 
             msg = await self.unpack(msg_bytes)
             if not msg.context:
                 # plaintext messages are ignored
-                conn.close() # TODO keeping connection open may be appropriate
+                await conn.close() # TODO keeping connection open may be appropriate
                 continue
 
             await self.put_message(msg)
 
             if not msg.context['from_key']:
                 # anonymous messages cannot be return routed
-                conn.close()
+                await conn.close()
                 continue
 
             if not '~transport' in msg:
@@ -144,7 +148,7 @@ class Conductor:
                 if not conn.can_recv():
                     # Can't get any more messages and not marked as
                     # return_route so close
-                    conn.close()
+                    await conn.close()
                 # Connection thinks there are more messages so don't close
                 continue
 

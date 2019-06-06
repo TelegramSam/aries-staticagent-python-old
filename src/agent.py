@@ -45,7 +45,6 @@ class Agent:
     async def from_config(cls, config: Config):
         agent = cls()
         agent.config = config
-        logging.getLogger().setLevel(logging.ERROR)
         agent.logger.setLevel(config.log_level)
         agent.wallet_handle = await open_wallet(
             agent.config.wallet,
