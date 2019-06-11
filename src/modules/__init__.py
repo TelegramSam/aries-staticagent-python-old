@@ -91,3 +91,4 @@ def module(cls):
         pass
 
     return WrappedModule
+

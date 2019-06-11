@@ -13,8 +13,7 @@ import indy_sdk_utils as utils
 from agent import Agent
 from config import Config
 from conductor import Conductor
-from messages.message import Message
-from messages.noop import Noop
+from messages import Message, Noop
 
 random.seed('testing_seed')
 logger = logging.getLogger(__name__)

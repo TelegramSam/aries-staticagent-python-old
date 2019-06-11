@@ -7,8 +7,7 @@ from indy import crypto
 from compat import create_task
 from config import Config
 from hooks import self_hook_point
-from messages.message import Message
-from messages.noop import Noop
+from messages import Message, Noop
 import indy_sdk_utils as utils
 from transport.connection import CannotOpenConnection
 import transport.inbound.standard_in as StdIn

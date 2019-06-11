@@ -1,6 +1,6 @@
 import pytest
 
-from module import module, route_def, Semver, InvalidModule
+from modules import module, route_def, Semver, InvalidModule
 
 def test_module_def():
 

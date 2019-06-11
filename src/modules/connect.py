@@ -1,4 +1,4 @@
-from module import module
+from modules import module
 
 @module
 class Connect:

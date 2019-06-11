@@ -4,8 +4,8 @@ from collections import namedtuple
 import pytest
 
 from agent import Agent, NoRegisteredRouteException
-from module import module
-from messages.message import Message, Semver
+from modules import module, Semver
+from messages import Message
 
 MockMessage = namedtuple('MockMessage', ['type', 'test'])
 
